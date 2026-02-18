@@ -1,50 +1,52 @@
-# Welcome to your Expo app 👋
+# BloodConnect Mobile App (CodeRed Appathon)
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A centralized, scalable, and secure mobile application designed to streamline internal operations for BloodConnect. This application transforms fragmented manual processes (spreadsheets, WhatsApp groups) into a unified technology-driven ecosystem.
 
-## Get started
+## 🚀 Vision
+To enhance coordination, transparency, and operational efficiency within BloodConnect, ensuring that every blood request is met with the fastest possible response through optimized volunteer and donor management.
 
-1. Install dependencies
+## ✨ Features (MVP UI Demo)
+- **Role-Based Access Control**: Tailored dashboards for Admin, Managers, Helpline, and Volunteers.
+- **Volunteer Management**: Profile creation, performance tracking, and task status.
+- **Donor Database**: Searchable donor records by blood group and city.
+- **Helpline System**: Real-time request tracking and priority-based alerts.
+- **Modern UI/UX**: Minimalistic, professional design inspired by Apple Health/Fitness apps, optimized for both Android and iOS.
 
+## 🛠️ Tech Stack
+- **Framework**: [Expo](https://expo.dev/) (React Native)
+- **Navigation**: [Expo Router](https://docs.expo.dev/router/introduction/) (File-based routing)
+- **UI Components**: [React Native Paper](https://reactnativepaper.com/)
+- **Icons**: [Lucide React Native](https://lucide.dev/guide/packages/lucide-react-native)
+- **State Management**: React Context API (Auth & Role management)
+- **Language**: TypeScript
+
+## 🏗️ Architecture Overview
+
+The application follows a modular architecture designed for scalability:
+
+### 1. Presentation Layer (App)
+Located in the `/app` directory, utilizing Expo Router for navigation:
+- `(tabs)/`: Main navigation hub containing Dashboard, Management, Helpline, and Profile.
+- `onboarding`: Multi-slide introduction to the app's value proposition.
+- `login`: Simplified dummy authentication flow.
+- `role-selection`: Centralized role switching to simulate various user experiences.
+
+### 2. Context Layer
+- `AuthContext`: Manages the dummy authentication state and stores the current user's role (Admin, Volunteer, etc.).
+
+### 3. Component Layer
+- Reusable UI components built on top of React Native Paper, following a consistent design system (Medical Red theme).
+
+## 📱 How to Run
+1. Install dependencies:
    ```bash
    npm install
    ```
-
-2. Start the app
-
+2. Start the development server:
    ```bash
    npx expo start
    ```
+3. Open on Android Emulator or iOS Simulator.
 
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
-```
-
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+---
+*Built with ❤️ for BloodConnect by Antigravity*
