@@ -3,7 +3,10 @@ import { createLead, getAllLeads, OutreachLead, updateLeadStatus } from '@/lib/o
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import {
-    Building2, ChevronRight, Filter, MapPin, Phone, Plus, Search, Tag, User,
+    Building2,
+    Check, ChevronLeft,
+    ChevronRight, Filter, MapPin, Phone, Plus, Search, Tag, User,
+    X,
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -11,6 +14,7 @@ import {
     Platform, RefreshControl, ScrollView, StyleSheet, Text, TextInput,
     TouchableOpacity, View,
 } from 'react-native';
+import { Chip } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -67,7 +71,7 @@ export default function OutreachScreen() {
             setShowAddModal(false);
             setForm({ organization_name: '', poc_name: '', poc_phone: '', poc_email: '', purpose: '', occasion: '', type: 'camp', org_category: 'corporate', city: '', location: '', notes: '' });
             loadLeads();
-            Alert.alert('✅ Lead Added', 'New outreach lead created successfully.');
+            Alert.alert('Lead Added', 'New outreach lead created successfully.');
         } catch (e: any) {
             Alert.alert('Error', e.message || 'Failed to create lead.');
         }
@@ -107,10 +111,10 @@ export default function OutreachScreen() {
                         <Text style={styles.orgCategory}>{item.org_category?.toUpperCase()} • {item.type === 'camp' ? 'Blood Camp' : 'Awareness Session'}</Text>
                     </View>
                     <TouchableOpacity
-                        style={[styles.statusBadge, { backgroundColor: sc.bg }]}
+                        style={[styles.statusBadge, { backgroundColor: sc.color }]}
                         onPress={() => handleStatusChange(item)}
                     >
-                        <Text style={[styles.statusText, { color: sc.color }]}>{sc.label}</Text>
+                        <Text style={[styles.statusText, { color: '#FFFFFF' }]}>{sc.label}</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -154,9 +158,14 @@ export default function OutreachScreen() {
     return (
         <View style={styles.container}>
             <LinearGradient colors={['#FF9500', '#FF6B00']} style={[styles.header, { paddingTop: insets.top + 16 }]}>
-                <View>
-                    <Text style={styles.headerSub}>Outreach Module</Text>
-                    <Text style={styles.headerTitle}>Lead Management</Text>
+                <View style={styles.headerTitleRow}>
+                    <TouchableOpacity onPress={() => router.back()} style={styles.backBtnHeader}>
+                        <ChevronLeft size={24} color="#FFFFFF" />
+                    </TouchableOpacity>
+                    <View>
+                        <Text style={styles.headerSub}>Outreach Module</Text>
+                        <Text style={styles.headerTitle}>Lead Management</Text>
+                    </View>
                 </View>
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                     <TouchableOpacity style={styles.headerBtn} onPress={() => setShowFilterModal(true)}>
@@ -168,19 +177,36 @@ export default function OutreachScreen() {
                 </View>
             </LinearGradient>
 
-            {/* Status Summary */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.summaryScroll} contentContainerStyle={{ paddingHorizontal: 16, gap: 10, paddingVertical: 12 }}>
-                {counts.map(c => (
-                    <TouchableOpacity
-                        key={c.key}
-                        style={[styles.summaryCard, filterStatus === c.key && { borderColor: c.color, borderWidth: 2 }]}
-                        onPress={() => setFilterStatus(filterStatus === c.key ? null : c.key)}
-                    >
-                        <Text style={[styles.summaryCount, { color: c.color }]}>{c.count}</Text>
-                        <Text style={styles.summaryLabel}>{c.label}</Text>
-                    </TouchableOpacity>
-                ))}
-            </ScrollView>
+            {/* Status Summary Chips */}
+            <View style={styles.summaryContainer}>
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.summaryScrollContent}
+                >
+                    {counts.map(c => (
+                        <Chip
+                            key={c.key}
+                            selected={filterStatus === c.key}
+                            onPress={() => setFilterStatus(filterStatus === c.key ? null : c.key)}
+                            style={[
+                                styles.summaryChip,
+                                filterStatus === c.key
+                                    ? { backgroundColor: c.color, borderWidth: 0 }
+                                    : { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E5EA' }
+                            ]}
+                            showSelectedCheck={false}
+                            textStyle={[
+                                styles.summaryChipText,
+                                { color: filterStatus === c.key ? '#FFFFFF' : '#8E8E93' }
+                            ]}
+                            mode="flat"
+                        >
+                            {c.label} ({c.count})
+                        </Chip>
+                    ))}
+                </ScrollView>
+            </View>
 
             {/* Search */}
             <View style={styles.searchContainer}>
@@ -219,13 +245,13 @@ export default function OutreachScreen() {
             <Modal visible={showAddModal} animationType="slide" presentationStyle="pageSheet">
                 <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
                     <View style={styles.modalContainer}>
-                        <View style={styles.modalHeader}>
-                            <TouchableOpacity onPress={() => setShowAddModal(false)}>
-                                <Text style={styles.modalCancel}>Cancel</Text>
+                        <View style={[styles.modalHeader, { paddingTop: Platform.OS === 'ios' ? 20 : insets.top + 10 }]}>
+                            <TouchableOpacity onPress={() => setShowAddModal(false)} style={styles.modalCloseBtn}>
+                                <X size={24} color="#8E8E93" />
                             </TouchableOpacity>
-                            <Text style={styles.modalTitle}>Add Lead</Text>
-                            <TouchableOpacity onPress={handleCreate}>
-                                <Text style={styles.modalSave}>Save</Text>
+                            <Text style={styles.modalTitle}>New Outreach Lead</Text>
+                            <TouchableOpacity onPress={handleCreate} style={styles.modalSaveBtn}>
+                                <Check size={24} color="#FF9500" />
                             </TouchableOpacity>
                         </View>
                         <ScrollView style={styles.modalScroll} keyboardShouldPersistTaps="handled">
@@ -297,43 +323,45 @@ export default function OutreachScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#F8F9FB' },
-    header: { paddingHorizontal: 24, paddingBottom: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+    header: { paddingHorizontal: 20, paddingBottom: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+    headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    backBtnHeader: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
     headerSub: { color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: '700', letterSpacing: 1 },
     headerTitle: { color: '#FFFFFF', fontSize: 28, fontWeight: '900', letterSpacing: -0.5 },
     headerBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
-    summaryScroll: { maxHeight: 90 },
-    summaryCard: { backgroundColor: '#FFFFFF', borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12, alignItems: 'center', minWidth: 110, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2, borderWidth: 1, borderColor: '#F2F2F7' },
-    summaryCount: { fontSize: 22, fontWeight: '900' },
-    summaryLabel: { fontSize: 11, color: '#8E8E93', fontWeight: '700', marginTop: 2 },
+    summaryContainer: { marginBottom: 16 },
+    summaryScrollContent: { paddingHorizontal: 16, gap: 8 },
+    summaryChip: { borderRadius: 16 },
+    summaryChipText: { fontSize: 13, fontWeight: '700' },
     searchContainer: { paddingHorizontal: 16, paddingBottom: 8 },
     searchBar: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FFFFFF', borderRadius: 16, paddingHorizontal: 16, height: 46, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 },
     searchInput: { flex: 1, fontSize: 15, color: '#1C1C1E' },
     list: { padding: 16, gap: 12 },
-    leadCard: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 3 },
+    leadCard: { backgroundColor: '#FFFFFF', borderRadius: 28, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.04, shadowRadius: 12, elevation: 3, borderWidth: 1, borderColor: '#F2F2F7' },
     leadHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
     orgIcon: { width: 44, height: 44, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
     orgName: { fontSize: 16, fontWeight: '800', color: '#1C1C1E' },
     orgCategory: { fontSize: 11, color: '#8E8E93', fontWeight: '700', marginTop: 2, letterSpacing: 0.5 },
     statusBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
-    statusText: { fontSize: 11, fontWeight: '800' },
+    statusText: { fontSize: 11, fontWeight: '900', textTransform: 'uppercase' },
     leadMeta: { gap: 6, marginBottom: 12 },
     metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     metaText: { fontSize: 13, color: '#3C3C43', fontWeight: '600' },
     leadFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: '#F2F2F7', paddingTop: 10 },
     dateText: { fontSize: 12, color: '#C7C7CC', fontWeight: '600' },
     centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    emptyState: { alignItems: 'center', paddingVertical: 60 },
-    emptyText: { fontSize: 18, fontWeight: '800', color: '#3C3C43', marginTop: 16 },
+    emptyState: { alignItems: 'center', paddingVertical: 80 },
+    emptyText: { fontSize: 18, fontWeight: '800', color: '#1C1C1E', marginTop: 16 },
     emptySubText: { fontSize: 14, color: '#8E8E93', fontWeight: '600', marginTop: 6 },
-    modalContainer: { flex: 1, backgroundColor: '#F8F9FB' },
-    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#F2F2F7', backgroundColor: '#FFFFFF' },
-    modalTitle: { fontSize: 17, fontWeight: '800', color: '#1C1C1E' },
-    modalCancel: { fontSize: 16, color: '#8E8E93', fontWeight: '600' },
-    modalSave: { fontSize: 16, color: '#FF9500', fontWeight: '800' },
+    modalContainer: { flex: 1, backgroundColor: '#FFFFFF' },
+    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 20, borderBottomWidth: 1, borderBottomColor: '#F2F2F7', backgroundColor: '#FFFFFF' },
+    modalTitle: { fontSize: 19, fontWeight: '900', color: '#1C1C1E', letterSpacing: -0.5 },
+    modalCloseBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#F2F2F7', justifyContent: 'center', alignItems: 'center' },
+    modalSaveBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFF4E5', justifyContent: 'center', alignItems: 'center' },
     modalScroll: { padding: 16 },
     formGroup: { marginBottom: 16 },
-    formLabel: { fontSize: 13, fontWeight: '700', color: '#3C3C43', marginBottom: 8 },
-    formInput: { backgroundColor: '#FFFFFF', borderRadius: 14, paddingHorizontal: 16, height: 48, fontSize: 15, color: '#1C1C1E', borderWidth: 1, borderColor: '#E5E5EA' },
+    formLabel: { fontSize: 13, fontWeight: '900', color: '#8E8E93', marginBottom: 10, letterSpacing: 0.5 },
+    formInput: { backgroundColor: '#F2F2F7', borderRadius: 14, paddingHorizontal: 16, height: 48, fontSize: 15, color: '#1C1C1E', borderWidth: 1, borderColor: 'transparent' },
     segmentRow: { flexDirection: 'row', gap: 8 },
     segmentBtn: { flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 1.5, borderColor: '#E5E5EA', alignItems: 'center', backgroundColor: '#FFFFFF' },
     segmentBtnActive: { backgroundColor: '#FF9500', borderColor: '#FF9500' },

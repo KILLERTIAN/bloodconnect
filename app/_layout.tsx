@@ -7,7 +7,9 @@ import { MD3LightTheme, Provider as PaperProvider } from 'react-native-paper';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { initializeSchema, seedDefaultUsers } from '@/lib/schema';
+import { DatabaseProvider } from '@/lib/db-context';
+import { registerForPushNotificationsAsync } from '@/lib/notifications.service';
+import { cleanupSyncManager, initializeSyncManager } from '@/lib/sync.service';
 
 const theme = {
   ...MD3LightTheme,
@@ -21,21 +23,23 @@ const theme = {
   },
 };
 
-import { registerForPushNotificationsAsync } from '@/lib/notifications.service';
-
 function AppInitializer({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     async function init() {
       try {
-        await initializeSchema();
-        await seedDefaultUsers();
         await registerForPushNotificationsAsync();
-        console.log('✅ Database & Notifications initialized');
+        await initializeSyncManager();
+        console.log('✅ App initialized: Notifications and Sync Manager ready');
       } catch (e) {
         console.error('❌ App init error:', e);
       }
     }
     init();
+
+    // Cleanup on unmount
+    return () => {
+      cleanupSyncManager();
+    };
   }, []);
   return <>{children}</>;
 }
@@ -47,23 +51,26 @@ export default function RootLayout() {
     <AuthProvider>
       <PaperProvider theme={theme}>
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <AppInitializer>
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="index" />
-              <Stack.Screen name="onboarding" />
-              <Stack.Screen name="login" />
-              <Stack.Screen name="role-selection" />
-              <Stack.Screen name="request-details" />
-              <Stack.Screen name="schedule-donation" />
-              <Stack.Screen name="donor-details" />
-              <Stack.Screen name="event-details" />
-              <Stack.Screen name="camp-manager" />
-              <Stack.Screen name="outreach" />
-              <Stack.Screen name="hr-dashboard" />
-              <Stack.Screen name="notifications" options={{ presentation: 'modal' }} />
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            </Stack>
-          </AppInitializer>
+          <DatabaseProvider>
+            <AppInitializer>
+              <Stack screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="index" />
+                <Stack.Screen name="onboarding" />
+                <Stack.Screen name="login" />
+                <Stack.Screen name="role-selection" />
+                <Stack.Screen name="request-details" />
+                <Stack.Screen name="schedule-donation" />
+                <Stack.Screen name="donor-details" />
+                <Stack.Screen name="event-details" />
+                <Stack.Screen name="camp-editor" />
+                <Stack.Screen name="camp-manager" />
+                <Stack.Screen name="outreach" />
+                <Stack.Screen name="hr-dashboard" />
+                <Stack.Screen name="notifications" options={{ presentation: 'modal' }} />
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              </Stack>
+            </AppInitializer>
+          </DatabaseProvider>
           <StatusBar style="auto" />
         </ThemeProvider>
       </PaperProvider>

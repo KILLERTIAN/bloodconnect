@@ -45,7 +45,7 @@ const ROLE_THEMES = {
         colors: ['#FF3B30', '#FF2D55'] as const,
         tagColor: '#FF3B30',
         statsColor: '#FFEBEA',
-        avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=300&auto=format&fit=crop',
+        avatar: 'https://picsum.photos/id/1012/300/300',
         label: 'Hero Donor',
         bio: '8 Lives Saved • Mumbai, IN',
         roleStats: [
@@ -58,7 +58,7 @@ const ROLE_THEMES = {
         colors: ['#5856D6', '#AF52DE'] as const,
         tagColor: '#5856D6',
         statsColor: '#F0EFFF',
-        avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?q=80&w=300&auto=format&fit=crop',
+        avatar: 'https://picsum.photos/id/64/300/300',
         label: 'Lead Volunteer',
         bio: '42 Missions • Active Responder',
         roleStats: [
@@ -71,7 +71,7 @@ const ROLE_THEMES = {
         colors: ['#1C1C1E', '#3A3A3C'] as const,
         tagColor: '#1C1C1E',
         statsColor: '#F2F2F7',
-        avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=300&auto=format&fit=crop',
+        avatar: 'https://picsum.photos/id/177/300/300',
         label: 'System Admin',
         bio: 'Node Master • Global Region',
         roleStats: [

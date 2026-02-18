@@ -1,17 +1,21 @@
+import { Event, getEventById } from '@/lib/events.service';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
+    Building2,
     Calendar,
     ChevronLeft,
     Clock,
     Heart,
     MapPin,
+    Phone,
     Share2,
     ShieldCheck,
     Users
 } from 'lucide-react-native';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+    ActivityIndicator,
     Dimensions,
     Image,
     ScrollView,
@@ -29,18 +33,60 @@ export default function EventDetailsScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const params = useLocalSearchParams();
+    const [event, setEvent] = useState<Event | null>(null);
+    const [loading, setLoading] = useState(true);
 
-    // In a real app, fetch event details by ID
-    const event = {
-        title: (params.title as string) || 'Mega Donation Camp 2024',
-        location: (params.location as string) || 'Central Mall, Ground Floor',
-        date: (params.date as string) || 'Oct 25, 2024',
-        time: '10:00 AM - 06:00 PM',
-        organizer: (params.organizer as string) || 'Red Cross Society',
-        joined: (params.joined as string) || '124',
-        image: (params.image as string) || 'https://images.unsplash.com/photo-1615461066841-6116ecaaba0a?auto=format&fit=crop&q=80&w=800',
-        description: (params.description as string) || 'Join us for one of the largest blood donation events of the year. Your contribution can help save up to three lives. We have professional medical staff on-site and provide refreshments for all donors.',
-        isPast: params.isPast === 'true',
+    useEffect(() => {
+        loadEvent();
+    }, [params.id]);
+
+    const loadEvent = async () => {
+        try {
+            if (params.id) {
+                const data = await getEventById(Number(params.id));
+                setEvent(data);
+            }
+        } catch (e) {
+            console.error('Failed to load event:', e);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (loading) {
+        return (
+            <View style={styles.centered}>
+                <ActivityIndicator size="large" color="#FF3B30" />
+            </View>
+        );
+    }
+
+    if (!event) {
+        return (
+            <View style={styles.centered}>
+                <Text style={styles.errorText}>Event not found</Text>
+                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                    <Text style={styles.backButtonText}>Go Back</Text>
+                </TouchableOpacity>
+            </View>
+        );
+    }
+
+    // Use actual event data or fallback to placeholder
+    const imageId = 1050 + (event.id % 50);
+    const placeholderUrl = `https://picsum.photos/id/${imageId}/800/600`;
+    const imageUrl = event.image_url || placeholderUrl;
+    const joinedCount = 120 + (event.id * 3);
+
+    // Format date
+    const formatDate = (dateStr: string) => {
+        if (!dateStr) return 'Date TBA';
+        try {
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        } catch {
+            return dateStr;
+        }
     };
 
     return (
@@ -50,7 +96,7 @@ export default function EventDetailsScreen() {
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                 {/* Hero Image Section */}
                 <View style={styles.heroContainer}>
-                    <Image source={{ uri: event.image }} style={styles.heroImage} />
+                    <Image source={{ uri: imageUrl }} style={styles.heroImage} />
                     <LinearGradient
                         colors={['rgba(0,0,0,0.6)', 'transparent', 'rgba(0,0,0,0.8)']}
                         style={styles.heroOverlay}
@@ -72,12 +118,12 @@ export default function EventDetailsScreen() {
 
                     <View style={styles.heroContent}>
                         <View style={styles.categoryBadge}>
-                            <Text style={styles.categoryText}>URGENT CAMP</Text>
+                            <Text style={styles.categoryText}>BLOOD DONATION CAMP</Text>
                         </View>
                         <Text style={styles.eventTitle}>{event.title}</Text>
                         <View style={styles.organizerChip}>
                             <Avatar.Icon size={24} icon="office-building" style={styles.orgIcon} />
-                            <Text style={styles.orgName}>{event.organizer}</Text>
+                            <Text style={styles.orgName}>{event.organization_name}</Text>
                             <View style={styles.verifyBadge}>
                                 <ShieldCheck size={12} color="#FFFFFF" />
                             </View>
@@ -93,21 +139,21 @@ export default function EventDetailsScreen() {
                                 <Calendar size={20} color="#007AFF" />
                             </View>
                             <Text style={styles.statLabel}>DATE</Text>
-                            <Text style={styles.statValue}>{event.date}</Text>
+                            <Text style={styles.statValue}>{formatDate(event.event_date)}</Text>
                         </View>
                         <View style={[styles.statBox, styles.statDivider]}>
                             <View style={[styles.iconBox, { backgroundColor: '#FFF4E5' }]}>
                                 <Clock size={20} color="#FF9500" />
                             </View>
                             <Text style={styles.statLabel}>TIME</Text>
-                            <Text style={styles.statValue}>10 AM - 6 PM</Text>
+                            <Text style={styles.statValue}>{event.event_time || '10 AM - 6 PM'}</Text>
                         </View>
                         <View style={styles.statBox}>
                             <View style={[styles.iconBox, { backgroundColor: '#EAFCF0' }]}>
                                 <Users size={20} color="#34C759" />
                             </View>
-                            <Text style={styles.statLabel}>JOINED</Text>
-                            <Text style={styles.statValue}>{event.joined}+</Text>
+                            <Text style={styles.statLabel}>EXPECTED</Text>
+                            <Text style={styles.statValue}>{event.expected_donors || 0}</Text>
                         </View>
                     </View>
 
@@ -115,7 +161,6 @@ export default function EventDetailsScreen() {
                     <View style={styles.section}>
                         <View style={styles.sectionHeader}>
                             <Text style={styles.sectionTitle}>Location</Text>
-                            <TouchableOpacity><Text style={styles.mapLink}>Open Map</Text></TouchableOpacity>
                         </View>
                         <Card style={styles.infoCard} mode="contained">
                             <View style={styles.locationRow}>
@@ -124,17 +169,61 @@ export default function EventDetailsScreen() {
                                 </View>
                                 <View style={styles.locDetails}>
                                     <Text style={styles.locMain}>{event.location}</Text>
-                                    <Text style={styles.locSub}>HSR Layout Sector 4, Bangalore</Text>
+                                    {event.city && <Text style={styles.locSub}>{event.city}</Text>}
                                 </View>
                             </View>
                         </Card>
                     </View>
 
-                    {/* About Section */}
+                    {/* Contact Information */}
                     <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>About Event</Text>
-                        <Text style={styles.descriptionText}>{event.description}</Text>
+                        <Text style={styles.sectionTitle}>Point of Contact</Text>
+                        <Card style={styles.infoCard} mode="contained">
+                            <View style={styles.contactRow}>
+                                <View style={styles.contactInfo}>
+                                    <Text style={styles.contactName}>{event.poc_name}</Text>
+                                    <View style={styles.phoneRow}>
+                                        <Phone size={14} color="#8E8E93" />
+                                        <Text style={styles.contactPhone}>{event.poc_phone}</Text>
+                                    </View>
+                                    {event.poc_email && (
+                                        <Text style={styles.contactEmail}>{event.poc_email}</Text>
+                                    )}
+                                </View>
+                            </View>
+                        </Card>
                     </View>
+
+                    {/* Blood Bank Info */}
+                    {event.blood_bank_name && (
+                        <View style={styles.section}>
+                            <Text style={styles.sectionTitle}>Blood Bank</Text>
+                            <Card style={styles.infoCard} mode="contained">
+                                <View style={styles.locationRow}>
+                                    <View style={[styles.locIconContainer, { backgroundColor: '#EAF6FF' }]}>
+                                        <Building2 size={24} color="#007AFF" />
+                                    </View>
+                                    <View style={styles.locDetails}>
+                                        <Text style={styles.locMain}>{event.blood_bank_name}</Text>
+                                        {event.blood_bank_contact && (
+                                            <View style={styles.phoneRow}>
+                                                <Phone size={14} color="#8E8E93" />
+                                                <Text style={styles.locSub}>{event.blood_bank_contact}</Text>
+                                            </View>
+                                        )}
+                                    </View>
+                                </View>
+                            </Card>
+                        </View>
+                    )}
+
+                    {/* About Section */}
+                    {event.notes && (
+                        <View style={styles.section}>
+                            <Text style={styles.sectionTitle}>About Event</Text>
+                            <Text style={styles.descriptionText}>{event.notes}</Text>
+                        </View>
+                    )}
 
                     {/* Guidelines */}
                     <View style={styles.section}>
@@ -152,6 +241,10 @@ export default function EventDetailsScreen() {
                                 <View style={styles.dot} />
                                 <Text style={styles.guideText}>Carry a valid government photo ID.</Text>
                             </View>
+                            <View style={styles.guideItem}>
+                                <View style={styles.dot} />
+                                <Text style={styles.guideText}>Get adequate rest the night before.</Text>
+                            </View>
                         </View>
                     </View>
                 </View>
@@ -160,19 +253,16 @@ export default function EventDetailsScreen() {
             {/* Bottom Sticky Action */}
             <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
                 <TouchableOpacity
-                    style={[styles.joinButton, event.isPast && { opacity: 0.6 }]}
-                    activeOpacity={event.isPast ? 1 : 0.8}
-                    disabled={event.isPast}
+                    style={styles.joinButton}
+                    activeOpacity={0.8}
                 >
                     <LinearGradient
-                        colors={event.isPast ? ['#8E8E93', '#C7C7CC'] : ['#FF3B30', '#FF2D55']}
+                        colors={['#FF3B30', '#FF2D55']}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
                         style={styles.gradientBtn}
                     >
-                        <Text style={styles.buttonText}>
-                            {event.isPast ? 'Registration Closed' : 'Register for Event'}
-                        </Text>
+                        <Text style={styles.buttonText}>Register for Event</Text>
                     </LinearGradient>
                 </TouchableOpacity>
             </View>
@@ -184,6 +274,29 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#FAFBFC',
+    },
+    centered: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    errorText: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#8E8E93',
+        marginBottom: 20,
+    },
+    backButton: {
+        backgroundColor: '#FF3B30',
+        paddingHorizontal: 24,
+        paddingVertical: 12,
+        borderRadius: 12,
+    },
+    backButtonText: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '700',
     },
     scrollContent: {
         paddingBottom: 120,
@@ -385,6 +498,35 @@ const styles = StyleSheet.create({
         color: '#8E8E93',
         fontWeight: '600',
         marginTop: 2,
+    },
+    contactRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    contactInfo: {
+        flex: 1,
+    },
+    contactName: {
+        fontSize: 16,
+        fontWeight: '800',
+        color: '#1C1C1E',
+        marginBottom: 6,
+    },
+    phoneRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 4,
+    },
+    contactPhone: {
+        fontSize: 14,
+        color: '#8E8E93',
+        fontWeight: '600',
+    },
+    contactEmail: {
+        fontSize: 13,
+        color: '#8E8E93',
+        fontWeight: '500',
     },
     descriptionText: {
         fontSize: 16,

@@ -1,10 +1,13 @@
 import { useAuth } from '@/context/AuthContext';
-import { EVENT_STATUSES, Event, advanceEventStatus, createEvent, getAllEvents, getEventsByManager } from '@/lib/events.service';
+import { manualSync } from '@/lib/database';
+import { EVENT_STATUSES, Event, advanceEventStatus, getAllEvents } from '@/lib/events.service';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import {
+    ArrowRight,
     Building2,
     Calendar,
+    ChevronLeft,
     ChevronRight,
     MapPin,
     Phone,
@@ -16,17 +19,15 @@ import {
     ActivityIndicator,
     Alert,
     FlatList,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
     RefreshControl,
     ScrollView,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
-    View,
+    View
 } from 'react-native';
+import { Chip } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -47,21 +48,28 @@ export default function CampManagerScreen() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [search, setSearch] = useState('');
-    const [showAddModal, setShowAddModal] = useState(false);
     const [filterStatus, setFilterStatus] = useState<string | null>(null);
 
-    const [form, setForm] = useState({
-        title: '', organization_name: '', poc_name: '', poc_phone: '',
-        poc_email: '', location: '', city: '', blood_bank_name: '',
-        blood_bank_contact: '', event_date: '', event_time: '',
-        expected_donors: '', notes: '',
-    });
+    const isDonorOrVolunteer = role === 'donor' || role === 'volunteer';
 
-    const loadEvents = useCallback(async () => {
+    const loadEvents = useCallback(async (isRefresh = false) => {
         try {
-            const data = role === 'admin'
-                ? await getAllEvents()
-                : await getEventsByManager(user!.id);
+            if (!user) {
+                setEvents([]);
+                return;
+            }
+
+            if (isRefresh) {
+                // Trigger sync with Turso to get latest changes
+                try {
+                    await manualSync();
+                    console.log('✅ Manual sync completed during refresh');
+                } catch (syncError) {
+                    console.log('⚠️ Sync failed during refresh:', syncError);
+                }
+            }
+
+            const data = await getAllEvents();
             setEvents(data);
         } catch (e) {
             console.error(e);
@@ -69,29 +77,11 @@ export default function CampManagerScreen() {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [role, user]);
+    }, [role, user, isDonorOrVolunteer]);
 
     useEffect(() => { loadEvents(); }, [loadEvents]);
 
-    const handleCreate = async () => {
-        if (!form.title || !form.organization_name || !form.poc_name || !form.poc_phone || !form.location) {
-            Alert.alert('Missing Fields', 'Please fill all required fields.');
-            return;
-        }
-        try {
-            await createEvent({
-                ...form,
-                expected_donors: parseInt(form.expected_donors) || 0,
-                created_by: user!.id,
-            });
-            setShowAddModal(false);
-            setForm({ title: '', organization_name: '', poc_name: '', poc_phone: '', poc_email: '', location: '', city: '', blood_bank_name: '', blood_bank_contact: '', event_date: '', event_time: '', expected_donors: '', notes: '' });
-            loadEvents();
-            Alert.alert('✅ Success', 'Camp created successfully!');
-        } catch (e: any) {
-            Alert.alert('Error', e.message || 'Failed to create camp.');
-        }
-    };
+
 
     const handleAdvanceStatus = async (event: Event) => {
         const currentIdx = EVENT_STATUSES.findIndex(s => s.key === event.status);
@@ -138,23 +128,29 @@ export default function CampManagerScreen() {
                         <Text style={styles.eventTitle} numberOfLines={1}>{item.title}</Text>
                         <Text style={styles.eventOrg}>{item.organization_name}</Text>
                     </View>
-                    <View style={[styles.statusBadge, { backgroundColor: color + '20' }]}>
-                        <Text style={[styles.statusText, { color }]}>{statusInfo.label}</Text>
-                    </View>
+                    <Chip
+                        selected={true}
+                        textStyle={[styles.statusText, { color: '#FFFFFF' }]}
+                        style={[styles.statusBadge, { backgroundColor: color }]}
+                    >
+                        {statusInfo.label}
+                    </Chip>
                 </View>
 
-                {/* Progress Steps */}
-                <View style={styles.progressRow}>
-                    {EVENT_STATUSES.map((s, idx) => (
-                        <View
-                            key={s.key}
-                            style={[
-                                styles.progressStep,
-                                { backgroundColor: statusInfo.step >= s.step ? color : '#E5E5EA' }
-                            ]}
-                        />
-                    ))}
-                </View>
+                {/* Progress Steps - Only for Managers/Admins */}
+                {!isDonorOrVolunteer && (
+                    <View style={styles.progressRow}>
+                        {EVENT_STATUSES.map((s, idx) => (
+                            <View
+                                key={s.key}
+                                style={[
+                                    styles.progressStep,
+                                    { backgroundColor: statusInfo.step >= s.step ? color : '#E5E5EA' }
+                                ]}
+                            />
+                        ))}
+                    </View>
+                )}
 
                 <View style={styles.eventMeta}>
                     <View style={styles.metaItem}>
@@ -167,7 +163,7 @@ export default function CampManagerScreen() {
                             <Text style={styles.metaText}>{item.event_date}</Text>
                         </View>
                     ) : null}
-                    {item.poc_phone ? (
+                    {!isDonorOrVolunteer && item.poc_phone ? (
                         <View style={styles.metaItem}>
                             <Phone size={13} color="#8E8E93" />
                             <Text style={styles.metaText}>{item.poc_phone}</Text>
@@ -176,15 +172,26 @@ export default function CampManagerScreen() {
                 </View>
 
                 <View style={styles.eventFooter}>
-                    <Text style={styles.creatorText}>By {item.creator_name || 'Unknown'}</Text>
-                    <View style={styles.eventActions}>
+                    {!isDonorOrVolunteer && (
+                        <Text style={styles.creatorText}>By {item.creator_name || 'Unknown'}</Text>
+                    )}
+                    <View style={[styles.eventActions, isDonorOrVolunteer && { flex: 1, justifyContent: 'flex-end' }]}>
                         {(role === 'admin' || item.created_by === user?.id) && item.status !== 'closed' && (
-                            <TouchableOpacity
-                                style={styles.advanceBtn}
-                                onPress={() => handleAdvanceStatus(item)}
-                            >
-                                <Text style={styles.advanceBtnText}>Advance →</Text>
-                            </TouchableOpacity>
+                            <>
+                                <TouchableOpacity
+                                    style={[styles.advanceBtn, { backgroundColor: '#E5E5EA', marginRight: 8 }]}
+                                    onPress={() => router.push({ pathname: '/camp-editor', params: { id: item.id } })}
+                                >
+                                    <Text style={[styles.advanceBtnText, { color: '#1C1C1E' }]}>Edit</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={styles.advanceBtn}
+                                    onPress={() => handleAdvanceStatus(item)}
+                                >
+                                    <Text style={styles.advanceBtnText}>Advance</Text>
+                                    <ArrowRight size={14} color="#FFFFFF" />
+                                </TouchableOpacity>
+                            </>
                         )}
                         <ChevronRight size={18} color="#C7C7CC" />
                     </View>
@@ -200,28 +207,38 @@ export default function CampManagerScreen() {
                 colors={['#007AFF', '#0051A8']}
                 style={[styles.header, { paddingTop: insets.top + 16 }]}
             >
-                <View>
-                    <Text style={styles.headerSub}>Camp Manager</Text>
-                    <Text style={styles.headerTitle}>Blood Camps</Text>
+                <View style={styles.headerTitleRow}>
+                    <TouchableOpacity onPress={() => router.back()} style={styles.backBtnHeader}>
+                        <ChevronLeft size={24} color="#FFFFFF" />
+                    </TouchableOpacity>
+                    <View>
+                        <Text style={styles.headerSub}>{isDonorOrVolunteer ? 'Get Involved' : 'Camp Manager'}</Text>
+                        <Text style={styles.headerTitle}>Blood Camps</Text>
+                    </View>
                 </View>
-                <TouchableOpacity style={styles.addBtn} onPress={() => setShowAddModal(true)}>
-                    <Plus size={22} color="#FFFFFF" strokeWidth={3} />
-                </TouchableOpacity>
+                {/* Only show Add button for Managers/Admins */}
+                {!isDonorOrVolunteer && (
+                    <TouchableOpacity style={styles.addBtn} onPress={() => router.push('/camp-editor')}>
+                        <Plus size={22} color="#FFFFFF" strokeWidth={3} />
+                    </TouchableOpacity>
+                )}
             </LinearGradient>
 
-            {/* Stats Bar */}
-            <View style={styles.statsBar}>
-                {[
-                    { label: 'Total', value: events.length, color: '#007AFF' },
-                    { label: 'Active', value: events.filter(e => !['closed'].includes(e.status)).length, color: '#34C759' },
-                    { label: 'Completed', value: events.filter(e => e.status === 'closed').length, color: '#8E8E93' },
-                ].map(s => (
-                    <View key={s.label} style={styles.statItem}>
-                        <Text style={[styles.statValue, { color: s.color }]}>{s.value}</Text>
-                        <Text style={styles.statLabel}>{s.label}</Text>
-                    </View>
-                ))}
-            </View>
+            {/* Stats Bar - Only for Managers */}
+            {!isDonorOrVolunteer && (
+                <View style={styles.statsBar}>
+                    {[
+                        { label: 'Total', value: events.length, color: '#007AFF' },
+                        { label: 'Active', value: events.filter(e => !['closed'].includes(e.status)).length, color: '#34C759' },
+                        { label: 'Completed', value: events.filter(e => e.status === 'closed').length, color: '#8E8E93' },
+                    ].map(s => (
+                        <View key={s.label} style={styles.statItem}>
+                            <Text style={[styles.statValue, { color: s.color }]}>{s.value}</Text>
+                            <Text style={styles.statLabel}>{s.label}</Text>
+                        </View>
+                    ))}
+                </View>
+            )}
 
             {/* Search */}
             <View style={styles.searchContainer}>
@@ -238,23 +255,51 @@ export default function CampManagerScreen() {
             </View>
 
             {/* Status Filter */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
-                <TouchableOpacity
-                    style={[styles.filterChip, !filterStatus && styles.filterChipActive]}
-                    onPress={() => setFilterStatus(null)}
+            <View style={styles.filterContainer}>
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.filterScrollContent}
                 >
-                    <Text style={[styles.filterChipText, !filterStatus && styles.filterChipTextActive]}>All</Text>
-                </TouchableOpacity>
-                {EVENT_STATUSES.map(s => (
-                    <TouchableOpacity
-                        key={s.key}
-                        style={[styles.filterChip, filterStatus === s.key && { backgroundColor: STATUS_COLORS[s.key], borderColor: STATUS_COLORS[s.key] }]}
-                        onPress={() => setFilterStatus(filterStatus === s.key ? null : s.key)}
+                    <Chip
+                        selected={!filterStatus}
+                        onPress={() => setFilterStatus(null)}
+                        style={[
+                            styles.chipItem,
+                            !filterStatus ? { backgroundColor: '#007AFF', borderWidth: 0 } : { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E5EA' }
+                        ]}
+                        showSelectedCheck={false}
+                        textStyle={[
+                            styles.chipText,
+                            { color: !filterStatus ? '#FFFFFF' : '#8E8E93' }
+                        ]}
+                        mode="flat"
                     >
-                        <Text style={[styles.filterChipText, filterStatus === s.key && { color: '#FFFFFF' }]}>{s.label}</Text>
-                    </TouchableOpacity>
-                ))}
-            </ScrollView>
+                        All
+                    </Chip>
+                    {EVENT_STATUSES.map(s => (
+                        <Chip
+                            key={s.key}
+                            selected={filterStatus === s.key}
+                            onPress={() => setFilterStatus(filterStatus === s.key ? null : s.key)}
+                            style={[
+                                styles.chipItem,
+                                filterStatus === s.key
+                                    ? { backgroundColor: STATUS_COLORS[s.key] || '#007AFF', borderWidth: 0 }
+                                    : { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E5EA' }
+                            ]}
+                            showSelectedCheck={false}
+                            textStyle={[
+                                styles.chipText,
+                                { color: filterStatus === s.key ? '#FFFFFF' : '#8E8E93' }
+                            ]}
+                            mode="flat"
+                        >
+                            {s.label}
+                        </Chip>
+                    ))}
+                </ScrollView>
+            </View>
 
             {/* List */}
             {loading ? (
@@ -267,7 +312,7 @@ export default function CampManagerScreen() {
                     keyExtractor={item => String(item.id)}
                     renderItem={renderEvent}
                     contentContainerStyle={styles.list}
-                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadEvents(); }} />}
+                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadEvents(true); }} />}
                     ListEmptyComponent={
                         <View style={styles.emptyState}>
                             <Building2 size={48} color="#C7C7CC" />
@@ -278,59 +323,16 @@ export default function CampManagerScreen() {
                 />
             )}
 
-            {/* Add Camp Modal */}
-            <Modal visible={showAddModal} animationType="slide" presentationStyle="pageSheet">
-                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-                    <View style={styles.modalContainer}>
-                        <View style={styles.modalHeader}>
-                            <TouchableOpacity onPress={() => setShowAddModal(false)}>
-                                <Text style={styles.modalCancel}>Cancel</Text>
-                            </TouchableOpacity>
-                            <Text style={styles.modalTitle}>New Camp</Text>
-                            <TouchableOpacity onPress={handleCreate}>
-                                <Text style={styles.modalSave}>Create</Text>
-                            </TouchableOpacity>
-                        </View>
-                        <ScrollView style={styles.modalScroll} keyboardShouldPersistTaps="handled">
-                            {[
-                                { label: 'Camp Title *', key: 'title', placeholder: 'e.g. Annual Blood Drive' },
-                                { label: 'Organization Name *', key: 'organization_name', placeholder: 'e.g. Infosys Ltd.' },
-                                { label: 'POC Name *', key: 'poc_name', placeholder: 'Contact person name' },
-                                { label: 'POC Phone *', key: 'poc_phone', placeholder: '9XXXXXXXXX', keyboard: 'phone-pad' },
-                                { label: 'POC Email', key: 'poc_email', placeholder: 'poc@company.com', keyboard: 'email-address' },
-                                { label: 'Location *', key: 'location', placeholder: 'Full address' },
-                                { label: 'City', key: 'city', placeholder: 'e.g. Bengaluru' },
-                                { label: 'Blood Bank Name', key: 'blood_bank_name', placeholder: 'e.g. Rotary Blood Bank' },
-                                { label: 'Blood Bank Contact', key: 'blood_bank_contact', placeholder: '9XXXXXXXXX', keyboard: 'phone-pad' },
-                                { label: 'Event Date', key: 'event_date', placeholder: 'YYYY-MM-DD' },
-                                { label: 'Event Time', key: 'event_time', placeholder: 'e.g. 10:00 AM' },
-                                { label: 'Expected Donors', key: 'expected_donors', placeholder: '0', keyboard: 'numeric' },
-                                { label: 'Notes', key: 'notes', placeholder: 'Additional info...', multiline: true },
-                            ].map(field => (
-                                <View key={field.key} style={styles.formGroup}>
-                                    <Text style={styles.formLabel}>{field.label}</Text>
-                                    <TextInput
-                                        style={[styles.formInput, field.multiline && { height: 80, textAlignVertical: 'top' }]}
-                                        placeholder={field.placeholder}
-                                        placeholderTextColor="#C7C7CC"
-                                        value={(form as any)[field.key]}
-                                        onChangeText={v => setForm(f => ({ ...f, [field.key]: v }))}
-                                        keyboardType={(field as any).keyboard || 'default'}
-                                        multiline={field.multiline}
-                                    />
-                                </View>
-                            ))}
-                        </ScrollView>
-                    </View>
-                </KeyboardAvoidingView>
-            </Modal>
+            {/* Modal removed in favor of camp-editor screen */}
         </View>
     );
 }
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#F8F9FB' },
-    header: { paddingHorizontal: 24, paddingBottom: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+    header: { paddingHorizontal: 20, paddingBottom: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+    headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    backBtnHeader: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
     headerSub: { color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: '700', letterSpacing: 1 },
     headerTitle: { color: '#FFFFFF', fontSize: 28, fontWeight: '900', letterSpacing: -0.5 },
     addBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
@@ -341,40 +343,39 @@ const styles = StyleSheet.create({
     searchContainer: { paddingHorizontal: 16, paddingVertical: 12 },
     searchBar: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FFFFFF', borderRadius: 16, paddingHorizontal: 16, height: 46, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 },
     searchInput: { flex: 1, fontSize: 15, color: '#1C1C1E' },
-    filterScroll: { maxHeight: 48, marginBottom: 4 },
-    filterChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: '#E5E5EA', backgroundColor: '#FFFFFF' },
-    filterChipActive: { backgroundColor: '#007AFF', borderColor: '#007AFF' },
-    filterChipText: { fontSize: 13, fontWeight: '700', color: '#8E8E93' },
-    filterChipTextActive: { color: '#FFFFFF' },
+    filterContainer: { marginBottom: 8 },
+    filterScrollContent: { paddingHorizontal: 16, gap: 8, paddingBottom: 8 },
+    chipItem: { borderRadius: 20 },
+    chipText: { fontSize: 13, fontWeight: '700' },
     list: { padding: 16, gap: 12 },
-    eventCard: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 3 },
-    eventCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
-    statusDot: { width: 10, height: 10, borderRadius: 5 },
-    eventTitle: { fontSize: 16, fontWeight: '800', color: '#1C1C1E' },
+    eventCard: { backgroundColor: '#FFFFFF', borderRadius: 28, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.04, shadowRadius: 12, elevation: 3, borderWidth: 1, borderColor: '#F2F2F7' },
+    eventCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
+    statusDot: { width: 8, height: 8, borderRadius: 4 },
+    eventTitle: { fontSize: 17, fontWeight: '800', color: '#1C1C1E' },
     eventOrg: { fontSize: 13, color: '#8E8E93', fontWeight: '600', marginTop: 2 },
-    statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
-    statusText: { fontSize: 11, fontWeight: '800' },
-    progressRow: { flexDirection: 'row', gap: 4, marginBottom: 12 },
+    statusBadge: { borderRadius: 12, height: 32 },
+    statusText: { fontSize: 10, fontWeight: '900', textTransform: 'uppercase' },
+    progressRow: { flexDirection: 'row', gap: 4, marginBottom: 16, marginTop: 8 },
     progressStep: { flex: 1, height: 4, borderRadius: 2 },
-    eventMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 12 },
-    metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    metaText: { fontSize: 12, color: '#8E8E93', fontWeight: '600' },
-    eventFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: '#F2F2F7', paddingTop: 10 },
-    creatorText: { fontSize: 12, color: '#C7C7CC', fontWeight: '600' },
-    eventActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    advanceBtn: { backgroundColor: '#007AFF', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
-    advanceBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
+    eventMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 16, paddingHorizontal: 4 },
+    metaItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    metaText: { fontSize: 12, color: '#48484A', fontWeight: '700' },
+    eventFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: '#F2F2F7', paddingTop: 14 },
+    creatorText: { fontSize: 11, color: '#C7C7CC', fontWeight: '700' },
+    eventActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    advanceBtn: { backgroundColor: '#007AFF', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, flexDirection: 'row', alignItems: 'center', gap: 6 },
+    advanceBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: '900' },
     centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    emptyState: { alignItems: 'center', paddingVertical: 60 },
-    emptyText: { fontSize: 18, fontWeight: '800', color: '#3C3C43', marginTop: 16 },
-    emptySubText: { fontSize: 14, color: '#8E8E93', fontWeight: '600', marginTop: 6 },
-    modalContainer: { flex: 1, backgroundColor: '#F8F9FB' },
-    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#F2F2F7', backgroundColor: '#FFFFFF' },
-    modalTitle: { fontSize: 17, fontWeight: '800', color: '#1C1C1E' },
-    modalCancel: { fontSize: 16, color: '#8E8E93', fontWeight: '600' },
-    modalSave: { fontSize: 16, color: '#007AFF', fontWeight: '800' },
-    modalScroll: { padding: 16 },
-    formGroup: { marginBottom: 16 },
-    formLabel: { fontSize: 13, fontWeight: '700', color: '#3C3C43', marginBottom: 8 },
-    formInput: { backgroundColor: '#FFFFFF', borderRadius: 14, paddingHorizontal: 16, height: 48, fontSize: 15, color: '#1C1C1E', borderWidth: 1, borderColor: '#E5E5EA' },
+    emptyState: { alignItems: 'center', paddingVertical: 80 },
+    emptyText: { fontSize: 20, fontWeight: '900', color: '#1C1C1E', marginTop: 20 },
+    emptySubText: { fontSize: 15, color: '#8E8E93', fontWeight: '600', marginTop: 8 },
+    modalContainer: { flex: 1, backgroundColor: '#FFFFFF' },
+    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 20, borderBottomWidth: 1, borderBottomColor: '#F2F2F7', backgroundColor: '#FFFFFF' },
+    modalTitle: { fontSize: 19, fontWeight: '900', color: '#1C1C1E', letterSpacing: -0.5 },
+    modalCloseBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#F2F2F7', justifyContent: 'center', alignItems: 'center' },
+    modalSaveBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#EAF6FF', justifyContent: 'center', alignItems: 'center' },
+    modalScroll: { padding: 24 },
+    formGroup: { marginBottom: 20 },
+    formLabel: { fontSize: 13, fontWeight: '900', color: '#8E8E93', marginBottom: 10, letterSpacing: 0.5 },
+    formInput: { backgroundColor: '#F2F2F7', borderRadius: 16, paddingHorizontal: 18, height: 56, fontSize: 16, color: '#1C1C1E', borderWidth: 1, borderColor: 'transparent' },
 });

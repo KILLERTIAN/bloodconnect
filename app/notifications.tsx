@@ -248,7 +248,7 @@ const styles = StyleSheet.create({
     },
     header: {
         backgroundColor: '#FFFFFF',
-        paddingBottom: 24,
+        paddingBottom: 16,
         borderBottomLeftRadius: 40,
         borderBottomRightRadius: 40,
         shadowColor: '#000',
@@ -263,7 +263,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 24,
-        marginBottom: 24,
+        marginBottom: 16,
     },
     backBtn: {
         width: 48,

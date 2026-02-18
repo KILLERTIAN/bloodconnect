@@ -22,6 +22,7 @@ export interface Event {
     created_at: string;
     updated_at: string;
     creator_name?: string;
+    image_url?: string;
 }
 
 export const EVENT_STATUSES = [
@@ -71,13 +72,13 @@ export async function createEvent(data: Partial<Event> & { created_by: number })
         INSERT INTO events (
             title, organization_name, poc_name, poc_phone, poc_email,
             location, city, blood_bank_name, blood_bank_contact,
-            event_date, event_time, expected_donors, created_by, notes, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'lead_received')
+            event_date, event_time, expected_donors, created_by, notes, image_url, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'lead_received')
     `, [
         data.title, data.organization_name, data.poc_name, data.poc_phone,
         data.poc_email || '', data.location, data.city || '', data.blood_bank_name || '',
         data.blood_bank_contact || '', data.event_date || '', data.event_time || '',
-        data.expected_donors || 0, data.created_by, data.notes || ''
+        data.expected_donors || 0, data.created_by, data.notes || '', data.image_url || ''
     ]);
     return Number(result.lastInsertRowid);
 }

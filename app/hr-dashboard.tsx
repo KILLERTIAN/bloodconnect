@@ -2,7 +2,8 @@ import { useAuth } from '@/context/AuthContext';
 import { getAllUsers } from '@/lib/auth.service';
 import { getManagerStats, getVolunteerStats, setScheduleEditingEnabled } from '@/lib/hr.service';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Award, BarChart2, Calendar, Lock, Unlock, User, Users } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import { Award, BarChart2, Calendar, ChevronLeft, Lock, Unlock, User, Users } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator, Alert, FlatList, RefreshControl,
@@ -14,6 +15,7 @@ type Tab = 'volunteers' | 'managers' | 'schedules';
 
 export default function HRDashboardScreen() {
     const { user } = useAuth();
+    const router = useRouter();
     const insets = useSafeAreaInsets();
     const [tab, setTab] = useState<Tab>('volunteers');
     const [volunteerStats, setVolunteerStats] = useState<any[]>([]);
@@ -48,7 +50,7 @@ export default function HRDashboardScreen() {
             await setScheduleEditingEnabled(targetUserId, enabled, user!.id);
             setScheduleSettings(prev => ({ ...prev, [targetUserId]: enabled }));
             Alert.alert(
-                enabled ? '🔓 Unlocked' : '🔒 Locked',
+                enabled ? 'Unlocked' : 'Locked',
                 `Schedule editing ${enabled ? 'enabled' : 'disabled'} for this user.`
             );
         } catch (e: any) {
@@ -153,9 +155,14 @@ export default function HRDashboardScreen() {
     return (
         <View style={styles.container}>
             <LinearGradient colors={['#5856D6', '#AF52DE']} style={[styles.header, { paddingTop: insets.top + 16 }]}>
-                <View>
-                    <Text style={styles.headerSub}>HR Module</Text>
-                    <Text style={styles.headerTitle}>HR Dashboard</Text>
+                <View style={styles.headerTitleRow}>
+                    <TouchableOpacity onPress={() => router.back()} style={styles.backBtnHeader}>
+                        <ChevronLeft size={24} color="#FFFFFF" />
+                    </TouchableOpacity>
+                    <View>
+                        <Text style={styles.headerSub}>HR Module</Text>
+                        <Text style={styles.headerTitle}>HR Dashboard</Text>
+                    </View>
                 </View>
                 <BarChart2 size={28} color="rgba(255,255,255,0.6)" />
             </LinearGradient>
@@ -235,7 +242,9 @@ export default function HRDashboardScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#F8F9FB' },
-    header: { paddingHorizontal: 24, paddingBottom: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+    header: { paddingHorizontal: 20, paddingBottom: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+    headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    backBtnHeader: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
     headerSub: { color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: '700', letterSpacing: 1 },
     headerTitle: { color: '#FFFFFF', fontSize: 28, fontWeight: '900', letterSpacing: -0.5 },
     summaryRow: { flexDirection: 'row', backgroundColor: '#FFFFFF', paddingVertical: 16, paddingHorizontal: 16, gap: 8, borderBottomWidth: 1, borderBottomColor: '#F2F2F7' },
@@ -244,26 +253,26 @@ const styles = StyleSheet.create({
     summaryLabel: { fontSize: 11, color: '#8E8E93', fontWeight: '700' },
     tabBar: { flexDirection: 'row', backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#F2F2F7' },
     tab: { flex: 1, paddingVertical: 14, alignItems: 'center' },
-    tabActive: { borderBottomWidth: 2, borderBottomColor: '#5856D6' },
+    tabActive: { borderBottomWidth: 3, borderBottomColor: '#5856D6' },
     tabText: { fontSize: 14, fontWeight: '700', color: '#8E8E93' },
     tabTextActive: { color: '#5856D6' },
     list: { padding: 16, gap: 12 },
-    statCard: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 3 },
+    statCard: { backgroundColor: '#FFFFFF', borderRadius: 28, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.04, shadowRadius: 12, elevation: 3, borderWidth: 1, borderColor: '#F2F2F7' },
     statCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
-    avatarCircle: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
+    avatarCircle: { width: 48, height: 48, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
     statName: { fontSize: 16, fontWeight: '800', color: '#1C1C1E' },
-    statRole: { fontSize: 12, fontWeight: '700', marginTop: 2 },
-    statMetrics: { flexDirection: 'row', alignItems: 'center' },
+    statRole: { fontSize: 12, fontWeight: '900', marginTop: 2, textTransform: 'uppercase', letterSpacing: 1 },
+    statMetrics: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8F9FB', borderRadius: 20, paddingVertical: 12 },
     metric: { flex: 1, alignItems: 'center' },
     metricValue: { fontSize: 20, fontWeight: '900', color: '#1C1C1E' },
-    metricLabel: { fontSize: 11, color: '#8E8E93', fontWeight: '700', marginTop: 2 },
-    metricDivider: { width: 1, height: 32, backgroundColor: '#F2F2F7' },
-    scheduleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, marginBottom: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 2 },
+    metricLabel: { fontSize: 10, color: '#8E8E93', fontWeight: '800', marginTop: 2, textTransform: 'uppercase' },
+    metricDivider: { width: 1, height: 24, backgroundColor: '#E5E5EA' },
+    scheduleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, marginBottom: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.02, shadowRadius: 8, elevation: 2, borderWidth: 1, borderColor: '#F2F2F7' },
     scheduleName: { fontSize: 15, fontWeight: '800', color: '#1C1C1E' },
     scheduleRole: { fontSize: 12, color: '#8E8E93', fontWeight: '600', marginTop: 2 },
     lockRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    scheduleHint: { fontSize: 13, color: '#8E8E93', fontWeight: '600', marginBottom: 12, textAlign: 'center' },
+    scheduleHint: { fontSize: 13, color: '#8E8E93', fontWeight: '600', marginBottom: 16, textAlign: 'center', paddingHorizontal: 20 },
     centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    emptyState: { alignItems: 'center', paddingVertical: 60 },
-    emptyText: { fontSize: 18, fontWeight: '800', color: '#3C3C43', marginTop: 16 },
+    emptyState: { alignItems: 'center', paddingVertical: 80 },
+    emptyText: { fontSize: 18, fontWeight: '800', color: '#1C1C1E', marginTop: 20 },
 });

@@ -12,6 +12,7 @@ import {
     MessageCircle,
     Phone,
     Siren,
+    Star,
     User2
 } from 'lucide-react-native';
 import React from 'react';
@@ -178,7 +179,10 @@ export default function RequestDetailsScreen() {
                                 <View style={styles.badgeRow}>
                                     <Text style={styles.badgeText}>Senior Volunteer</Text>
                                     <View style={styles.dot} />
-                                    <Text style={styles.badgeText}>4.9 ★</Text>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                        <Text style={styles.badgeText}>4.9</Text>
+                                        <Star size={12} color="#FF9500" fill="#FF9500" />
+                                    </View>
                                 </View>
                             </View>
                             <View style={styles.actionGroup}>

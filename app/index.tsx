@@ -18,7 +18,7 @@ export default function EntryScreen() {
             } else {
                 router.replace('/onboarding');
             }
-        }, 2000);
+        }, 500);
 
         return () => clearTimeout(timer);
     }, [isLoggedIn]);

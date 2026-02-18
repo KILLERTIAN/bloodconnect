@@ -6,6 +6,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import {
     Activity,
+    Check,
     Droplet,
     Phone,
     Plus, Radio, User, X
@@ -81,7 +82,7 @@ export default function HelplineScreen() {
             setShowAddModal(false);
             setForm({ patient_name: '', blood_group: 'A+', blood_component: 'Whole Blood', units_required: '1', hospital: '', city: '', attender_name: '', attender_contact: '', urgency: 'urgent', required_till: '', notes: '' });
             loadRequests();
-            Alert.alert('✅ Created', 'Helpline request created successfully.');
+            Alert.alert('Created', 'Helpline request created successfully.');
         } catch (e: any) {
             Alert.alert('Error', e.message);
         }
@@ -94,7 +95,7 @@ export default function HelplineScreen() {
                 text: 'Go Live', onPress: async () => {
                     await makeHelplineLive(req.id);
                     loadRequests();
-                    Alert.alert('🔴 Live!', 'Helpline is now live and a volunteer has been assigned.');
+                    Alert.alert('Live!', 'Helpline is now live and a volunteer has been assigned.');
                 }
             }
         ]);
@@ -137,7 +138,7 @@ export default function HelplineScreen() {
             setCallRemarks('');
             setCallOutcome('');
             setCallTimer(0);
-            Alert.alert('✅ Call Logged', 'Call details saved successfully.');
+            Alert.alert('Call Logged', 'Call details saved successfully.');
         } catch (e: any) {
             Alert.alert('Error', e.message);
         }
@@ -229,7 +230,7 @@ export default function HelplineScreen() {
             <View style={styles.tabBar}>
                 {[
                     { key: 'all', label: 'All' },
-                    { key: 'live', label: '🔴 Live' },
+                    { key: 'live', label: 'Live' },
                     { key: 'mine', label: 'My Cases' },
                 ].map(t => (
                     <TouchableOpacity
@@ -264,13 +265,13 @@ export default function HelplineScreen() {
             <Modal visible={showAddModal} animationType="slide" presentationStyle="pageSheet">
                 <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
                     <View style={styles.modalContainer}>
-                        <View style={styles.modalHeader}>
-                            <TouchableOpacity onPress={() => setShowAddModal(false)}>
-                                <Text style={styles.modalCancel}>Cancel</Text>
+                        <View style={[styles.modalHeader, { paddingTop: Platform.OS === 'ios' ? 20 : insets.top + 10 }]}>
+                            <TouchableOpacity onPress={() => setShowAddModal(false)} style={styles.modalCloseBtn}>
+                                <X size={24} color="#8E8E93" />
                             </TouchableOpacity>
                             <Text style={styles.modalTitle}>New Request</Text>
-                            <TouchableOpacity onPress={handleCreate}>
-                                <Text style={[styles.modalSave, { color: '#FF3B30' }]}>Create</Text>
+                            <TouchableOpacity onPress={handleCreate} style={styles.modalSaveBtn}>
+                                <Check size={24} color="#FF3B30" />
                             </TouchableOpacity>
                         </View>
                         <ScrollView style={styles.modalScroll} keyboardShouldPersistTaps="handled">
@@ -482,9 +483,11 @@ const styles = StyleSheet.create({
     emptyState: { alignItems: 'center', paddingVertical: 60 },
     emptyText: { fontSize: 18, fontWeight: '800', color: '#3C3C43', marginTop: 16 },
     emptySubText: { fontSize: 14, color: '#8E8E93', fontWeight: '600', marginTop: 6 },
-    modalContainer: { flex: 1, backgroundColor: '#F8F9FB' },
-    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#F2F2F7', backgroundColor: '#FFFFFF' },
-    modalTitle: { fontSize: 17, fontWeight: '800', color: '#1C1C1E' },
+    modalContainer: { flex: 1, backgroundColor: '#FFFFFF' },
+    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 20, borderBottomWidth: 1, borderBottomColor: '#F2F2F7', backgroundColor: '#FFFFFF' },
+    modalTitle: { fontSize: 19, fontWeight: '900', color: '#1C1C1E', letterSpacing: -0.5 },
+    modalCloseBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#F2F2F7', justifyContent: 'center', alignItems: 'center' },
+    modalSaveBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFEBEA', justifyContent: 'center', alignItems: 'center' },
     modalCancel: { fontSize: 16, color: '#8E8E93', fontWeight: '600' },
     modalSave: { fontSize: 16, fontWeight: '800' },
     modalScroll: { padding: 16 },

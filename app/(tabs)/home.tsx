@@ -1,5 +1,8 @@
 import { getDonorAvatar } from '@/constants/AvatarMapping';
 import { useAuth } from '@/context/AuthContext';
+import { sync } from '@/lib/database';
+import { Event, getAllEvents, getEventsByManager } from '@/lib/events.service';
+import { getDonors, getLiveHelplines, HelplineRequest } from '@/lib/helpline.service';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import {
@@ -14,25 +17,63 @@ import {
     MapPin,
     Radio,
     Search,
-    ShieldCheck,
     Siren,
     Users,
     Zap
 } from 'lucide-react-native';
-import { Dimensions, ScrollView, StatusBar, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Avatar, Card, Text, useTheme } from 'react-native-paper';
+import { useCallback, useEffect, useState } from 'react';
+import { Dimensions, RefreshControl, ScrollView, StatusBar, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Avatar, Text, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
 export default function DashboardScreen() {
-    const { role } = useAuth();
+    const { role, user } = useAuth();
     const router = useRouter();
     const theme = useTheme();
     const insets = useSafeAreaInsets();
 
+    const [refreshing, setRefreshing] = useState(false);
+    const [activeEvents, setActiveEvents] = useState<Event[]>([]);
+    const [criticalRequests, setCriticalRequests] = useState<HelplineRequest[]>([]);
+    const [stats, setStats] = useState({ cases: 0, donors: 0 });
+
+    const loadData = useCallback(async () => {
+        try {
+            // Role specific data loading
+            if (role === 'admin' || role === 'manager') {
+                const events = role === 'admin' ? await getAllEvents() : await getEventsByManager(user!.id);
+                setActiveEvents(events.filter(e => e.status !== 'closed'));
+
+                const helplines = await getLiveHelplines();
+                setCriticalRequests(helplines.filter(r => r.urgency === 'critical'));
+
+                const donors = await getDonors();
+                setStats({ cases: helplines.length, donors: donors.length });
+            } else if (role === 'volunteer') {
+                const helplines = await getLiveHelplines();
+                setCriticalRequests(helplines);
+            }
+        } catch (e) {
+            console.error('Home load error:', e);
+        } finally {
+            setRefreshing(false);
+        }
+    }, [role, user]);
+
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
+
+    const onRefresh = async () => {
+        setRefreshing(true);
+        await sync(); // Sync with Turso if available
+        await loadData();
+    };
+
     const renderHeader = (title: string, subtitle: string, avatarUri: string) => (
-        <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
+        <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
             <View style={{ flex: 1 }}>
                 <Text style={styles.dateText}>{subtitle}</Text>
                 <Text style={styles.userName} numberOfLines={1}>{title}</Text>
@@ -59,108 +100,125 @@ export default function DashboardScreen() {
         if (role === 'donor') {
             return (
                 <View style={styles.donorContainer}>
-                    {renderHeader('Hello, Rahul', '', currentUserAvatar)}
+                    {renderHeader('Welcome, Rahul', 'Good Morning', currentUserAvatar)}
 
+                    {/* Modern Hero Section */}
                     <View style={styles.heroSection}>
                         <LinearGradient
-                            colors={['#FF5F6D', '#FFC371']}
+                            colors={['#D32F2F', '#B71C1C']}
                             start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
-                            style={styles.heroGradient}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.heroCard}
                         >
-                            <View style={styles.heroContent}>
-                                <View style={styles.heroMain}>
-                                    <View style={styles.bloodBadge}>
-                                        <Droplet size={14} color="#FFFFFF" strokeWidth={3} />
-                                        <Text style={styles.bloodBadgeText}>A+ POSITIVE</Text>
+                            <View style={styles.heroRow}>
+                                <View style={styles.heroInfo}>
+                                    <View style={styles.bloodTag}>
+                                        <Droplet size={12} color="#D32F2F" fill="#D32F2F" />
+                                        <Text style={styles.bloodTagText}>A+ DONOR</Text>
                                     </View>
-                                    <Text style={styles.heroTitleCompact}>Eligible in 12 days</Text>
-                                    <Text style={styles.heroSubCompact}>Last donation: 3 months ago</Text>
+                                    <Text style={styles.heroTitleModern}>You are eligible to donate!</Text>
+                                    <Text style={styles.heroSubModern}>Last donation was 3 months ago.</Text>
+
+                                    <TouchableOpacity
+                                        style={styles.heroBtnModern}
+                                        activeOpacity={0.9}
+                                        onPress={() => router.push('/schedule-donation')}
+                                    >
+                                        <Text style={styles.heroBtnTextModern}>Schedule Now</Text>
+                                    </TouchableOpacity>
                                 </View>
-                                <TouchableOpacity
-                                    style={styles.heroActionBtn}
-                                    activeOpacity={0.8}
-                                    onPress={() => router.push('/schedule-donation')}
-                                >
-                                    <Text style={styles.heroActionText}>Schedule</Text>
-                                </TouchableOpacity>
+                                <View style={styles.heroProgress}>
+                                    <View style={styles.progressCircle}>
+                                        <Text style={styles.progressText}>100%</Text>
+                                        <Text style={styles.progressLabel}>Ready</Text>
+                                    </View>
+                                </View>
                             </View>
                         </LinearGradient>
                     </View>
 
-                    <View style={styles.quickStatsRow}>
-                        {[
-                            { label: 'Lives Saved', value: '12', icon: <Heart size={18} color="#FF2D55" fill="#FF2D55" />, bg: '#FFEBEA' },
-                            { label: 'Donations', value: '5', icon: <Droplet size={18} color="#FF3B30" />, bg: '#FFF1F0' },
-                            { label: 'Points', value: '1.2k', icon: <Award size={18} color="#FF9500" />, bg: '#FFF9E5' },
-                        ].map((stat, idx) => (
-                            <View key={idx} style={styles.statBox}>
-                                <View style={[styles.statIconBox, { backgroundColor: stat.bg }]}>{stat.icon}</View>
-                                <View>
-                                    <Text style={styles.statValSmall}>{stat.value}</Text>
-                                    <Text style={styles.statLabSmall}>{stat.label}</Text>
-                                </View>
+                    {/* Quick Stats - Modern Strip */}
+                    <View style={styles.statsStripContainer}>
+                        <View style={styles.statsStrip}>
+                            <View style={styles.statItemModern}>
+                                <Text style={styles.statValModern}>12</Text>
+                                <Text style={styles.statLabModern}>Lives Saved</Text>
                             </View>
-                        ))}
+                            <View style={styles.statDivider} />
+                            <View style={styles.statItemModern}>
+                                <Text style={styles.statValModern}>5</Text>
+                                <Text style={styles.statLabModern}>Donations</Text>
+                            </View>
+                            <View style={styles.statDivider} />
+                            <View style={styles.statItemModern}>
+                                <Text style={styles.statValModern}>850</Text>
+                                <Text style={styles.statLabModern}>Points</Text>
+                            </View>
+                        </View>
                     </View>
 
-                    <View style={styles.donorSection}>
+                    {/* Primary Actions Grid */}
+                    <View style={styles.actionGrid}>
+                        <TouchableOpacity
+                            style={styles.actionCardBig}
+                            activeOpacity={0.8}
+                            onPress={() => router.push('/(tabs)/management')} // Links to the new feed
+                        >
+                            <View style={[styles.actionIconCircle, { backgroundColor: '#EAF6FF' }]}>
+                                <Search size={24} color="#007AFF" />
+                            </View>
+                            <Text style={styles.actionTitle}>Find Camps</Text>
+                            <Text style={styles.actionSub}>Locate nearby drives</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.actionCardBig} activeOpacity={0.8}>
+                            <View style={[styles.actionIconCircle, { backgroundColor: '#FFF4E5' }]}>
+                                <Award size={24} color="#FF9500" />
+                            </View>
+                            <Text style={styles.actionTitle}>My Pass</Text>
+                            <Text style={styles.actionSub}>View donor card</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* Recent & Health */}
+                    <View style={styles.sectionContainer}>
                         <View style={styles.sectionHeaderCompact}>
-                            <Text style={styles.sectionTitleSmall}>Health Prep</Text>
-                            <TouchableOpacity><Text style={styles.seeAllSmall}>Guide</Text></TouchableOpacity>
+                            <Text style={styles.sectionTitleSmall}>Recent Impact</Text>
                         </View>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.prepScrollCompact}>
+                        <View style={styles.impactCardModern}>
+                            <View style={styles.impactRow}>
+                                <View style={styles.impactIconModern}>
+                                    <Heart size={20} color="#FFFFFF" fill="#FFFFFF" />
+                                </View>
+                                <View style={styles.impactContent}>
+                                    <Text style={styles.impactTitleModern}>Blood Donation</Text>
+                                    <Text style={styles.impactDate}>Oct 24, 2024 • City Hospital</Text>
+                                </View>
+                                <View style={styles.impactBadge}>
+                                    <Text style={styles.impactBadgeText}>+1 LIFE</Text>
+                                </View>
+                            </View>
+                        </View>
+                    </View>
+
+                    <View style={[styles.sectionContainer, { marginBottom: 40 }]}>
+                        <View style={styles.sectionHeaderCompact}>
+                            <Text style={styles.sectionTitleSmall}>Health Tips</Text>
+                            <TouchableOpacity><Text style={styles.seeAllSmall}>View All</Text></TouchableOpacity>
+                        </View>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tipsScroll}>
                             {[
-                                { title: 'Hydration', sub: '500ml+', icon: <Droplet size={18} color="#007AFF" />, bg: '#EAF6FF' },
-                                { title: 'Iron', sub: 'Greens', icon: <Heart size={18} color="#FF2D55" />, bg: '#FFEBEA' },
-                                { title: 'Sleep', sub: '8 Hours', icon: <Clock size={18} color="#AF52DE" />, bg: '#F5E9FF' },
-                                { title: 'Meals', sub: 'Balanced', icon: <Zap size={18} color="#34C759" />, bg: '#EAFCF0' },
-                            ].map((item, idx) => (
-                                <View key={idx} style={styles.prepCardCompact}>
-                                    <View style={[styles.prepIconSmall, { backgroundColor: item.bg }]}>{item.icon}</View>
-                                    <Text style={styles.prepTitleSmall}>{item.title}</Text>
-                                    <Text style={styles.prepSubSmall}>{item.sub}</Text>
+                                { label: 'Hydrate well', icon: Droplet, color: '#007AFF' },
+                                { label: 'Iron rich food', icon: Zap, color: '#FF9500' },
+                                { label: 'Good sleep', icon: Clock, color: '#AF52DE' },
+                            ].map((tip, idx) => (
+                                <View key={idx} style={styles.tipCard}>
+                                    <View style={[styles.tipIcon, { backgroundColor: `${tip.color}15` }]}>
+                                        <tip.icon size={20} color={tip.color} />
+                                    </View>
+                                    <Text style={styles.tipText}>{tip.label}</Text>
                                 </View>
                             ))}
                         </ScrollView>
-                    </View>
-
-                    <View style={styles.donorSection}>
-                        <Card style={styles.medicalCardCompact} mode="contained">
-                            <View style={styles.medicalHeaderCompact}>
-                                <View style={styles.medicalTitleRow}>
-                                    <ShieldCheck size={20} color="#34C759" />
-                                    <Text style={styles.medicalTitleSmall}>Health Readiness</Text>
-                                </View>
-                                <View style={styles.readinessBadge}>
-                                    <Text style={styles.readinessText}>OPTIMAL</Text>
-                                </View>
-                            </View>
-                            <View style={styles.healthBarSmall}>
-                                <LinearGradient
-                                    colors={['#34C759', '#30B753']}
-                                    style={styles.healthProgressSmall}
-                                />
-                            </View>
-                            <Text style={styles.healthInfoSmall}>92% Readiness Score • Updated today</Text>
-                        </Card>
-                    </View>
-
-                    <View style={[styles.donorSection, { marginBottom: 32 }]}>
-                        <View style={styles.sectionHeaderCompact}>
-                            <Text style={styles.sectionTitleSmall}>Recent Impact</Text>
-                            <TouchableOpacity onPress={() => router.push('/profile')}><Text style={styles.seeAllSmall}>History</Text></TouchableOpacity>
-                        </View>
-                        <TouchableOpacity style={styles.impactCardCompact} activeOpacity={0.7}>
-                            <View style={styles.impactIconBox}>
-                                <Droplet size={20} color="#FF3B30" />
-                            </View>
-                            <View style={styles.impactDetails}>
-                                <Text style={styles.impactTitleSmall} numberOfLines={1}>City Blood Bank</Text>
-                                <Text style={styles.impactMetaSmall}>3 months ago • 1 Unit</Text>
-                            </View>
-                            <ChevronRight size={18} color="#C7C7CC" />
-                        </TouchableOpacity>
                     </View>
                 </View>
             );
@@ -220,20 +278,22 @@ export default function DashboardScreen() {
                             <TouchableOpacity><Text style={styles.seeAll}>Update Range</Text></TouchableOpacity>
                         </View>
                         <View style={styles.alertList}>
-                            {[
-                                { hospital: 'St. John Hospital', type: 'B+', units: '2 Units', dist: '4.2km', urgent: true },
-                                { hospital: 'City Care Clinic', type: 'O-', units: '1 Unit', dist: '1.8km', urgent: false },
-                            ].map((alert, idx) => (
-                                <TouchableOpacity key={idx} activeOpacity={0.9} style={styles.alertCardModern}>
+                            {criticalRequests.slice(0, 3).map((alert, idx) => (
+                                <TouchableOpacity
+                                    key={idx}
+                                    activeOpacity={0.9}
+                                    style={styles.alertCardModern}
+                                    onPress={() => router.push({ pathname: '/(tabs)/helpline', params: { id: alert.id } })}
+                                >
                                     <View style={styles.alertLeft}>
-                                        <View style={[styles.bloodSquare, { backgroundColor: alert.type === 'O-' ? '#FF3B30' : '#FFEBEA' }]}>
-                                            <Text style={[styles.bloodSquareText, { color: alert.type === 'O-' ? '#FFFFFF' : '#FF3B30' }]}>{alert.type}</Text>
+                                        <View style={[styles.bloodSquare, { backgroundColor: '#FFEBEA' }]}>
+                                            <Text style={[styles.bloodSquareText, { color: '#FF3B30' }]}>{alert.blood_group}</Text>
                                         </View>
                                     </View>
                                     <View style={styles.alertContentModern}>
                                         <View style={styles.alertHeaderRow}>
                                             <Text style={styles.hospitalNameSmall} numberOfLines={1}>{alert.hospital}</Text>
-                                            {alert.urgent && (
+                                            {alert.urgency === 'critical' && (
                                                 <View style={styles.urgentBadgeMini}>
                                                     <Text style={styles.urgentBadgeText}>URGENT</Text>
                                                 </View>
@@ -242,12 +302,12 @@ export default function DashboardScreen() {
                                         <View style={styles.alertMetaRow}>
                                             <View style={styles.metaItemMini}>
                                                 <MapPin size={12} color="#8E8E93" />
-                                                <Text style={styles.metaTextMini}>{alert.dist}</Text>
+                                                <Text style={styles.metaTextMini}>{alert.city}</Text>
                                             </View>
                                             <View style={styles.metaDot} />
                                             <View style={styles.metaItemMini}>
                                                 <Droplet size={12} color="#8E8E93" />
-                                                <Text style={styles.metaTextMini}>{alert.units}</Text>
+                                                <Text style={styles.metaTextMini}>{alert.units_required} Units</Text>
                                             </View>
                                         </View>
                                     </View>
@@ -256,6 +316,9 @@ export default function DashboardScreen() {
                                     </TouchableOpacity>
                                 </TouchableOpacity>
                             ))}
+                            {criticalRequests.length === 0 && (
+                                <Text style={styles.emptyFeedText}>No active alerts at the moment.</Text>
+                            )}
                         </View>
                     </View>
                 </View>
@@ -274,26 +337,41 @@ export default function DashboardScreen() {
                 <View style={styles.emergencyContainer}>
                     <View style={styles.sectionHeader}>
                         <Text style={styles.sectionTitle}>Critical Alerts</Text>
-                        <TouchableOpacity><Text style={styles.seeAll}>Manage</Text></TouchableOpacity>
+                        <TouchableOpacity onPress={() => router.push('/(tabs)/helpline')}><Text style={styles.seeAll}>Manage</Text></TouchableOpacity>
                     </View>
-                    <LinearGradient
-                        colors={['#FF3B30', '#FF2D55']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.emergencyCard}
-                    >
-                        <View style={styles.emergencyHeader}>
-                            <View style={styles.urgentBadge}>
-                                <Siren size={14} color="#FFFFFF" strokeWidth={2.5} />
-                                <Text style={styles.urgentText}>URGENT NEED</Text>
+                    {criticalRequests.length > 0 ? (
+                        <TouchableOpacity
+                            style={styles.emergencyCard}
+                            activeOpacity={0.9}
+                            onPress={() => router.push({ pathname: '/(tabs)/helpline', params: { id: criticalRequests[0].id } })}
+                        >
+                            <LinearGradient
+                                colors={['#FF3B30', '#FF2D55']}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 1 }}
+                                style={StyleSheet.absoluteFill}
+                            />
+                            <View style={styles.emergencyHeader}>
+                                <View style={styles.urgentBadge}>
+                                    <Siren size={14} color="#FFFFFF" strokeWidth={2.5} />
+                                    <Text style={styles.urgentText}>URGENT NEED</Text>
+                                </View>
+                                <View style={styles.arrowCircle}>
+                                    <ChevronRight size={20} color="#FFFFFF" strokeWidth={3} />
+                                </View>
                             </View>
-                            <View style={styles.arrowCircle}>
-                                <ChevronRight size={20} color="#FFFFFF" strokeWidth={3} />
-                            </View>
+                            <Text style={styles.emergencyTitle} numberOfLines={2}>
+                                {criticalRequests[0].hospital} needs {criticalRequests[0].units_required} units of {criticalRequests[0].blood_group}
+                            </Text>
+                            <Text style={styles.emergencySub} numberOfLines={2}>
+                                {criticalRequests[0].notes || `Critical case at ${criticalRequests[0].hospital}. Contacting nearby donors.`}
+                            </Text>
+                        </TouchableOpacity>
+                    ) : (
+                        <View style={[styles.emergencyCard, { backgroundColor: '#F2F2F7', shadowColor: 'transparent' }]}>
+                            <Text style={[styles.emergencyTitle, { color: '#8E8E93', fontSize: 16 }]}>No critical alerts reported today.</Text>
                         </View>
-                        <Text style={styles.emergencyTitle} numberOfLines={2}>Appollo Hospital needs 5 units of O- Negative</Text>
-                        <Text style={styles.emergencySub} numberOfLines={2}>Critical trauma case admitted 10 mins ago. Contacting nearby O- donors.</Text>
-                    </LinearGradient>
+                    )}
                 </View>
 
                 <View style={styles.statsGrid}>
@@ -302,7 +380,7 @@ export default function DashboardScreen() {
                             <Droplet size={20} color="#FF3B30" />
                         </View>
                         <View>
-                            <Text style={styles.adminStatValue}>12</Text>
+                            <Text style={styles.adminStatValue}>{stats.cases}</Text>
                             <Text style={styles.adminStatLabel}>Active Cases</Text>
                         </View>
                     </View>
@@ -311,7 +389,7 @@ export default function DashboardScreen() {
                             <Users size={20} color="#007AFF" />
                         </View>
                         <View>
-                            <Text style={styles.adminStatValue}>2.5k</Text>
+                            <Text style={styles.adminStatValue}>{stats.donors}</Text>
                             <Text style={styles.adminStatLabel}>Total Donors</Text>
                         </View>
                     </View>
@@ -371,7 +449,18 @@ export default function DashboardScreen() {
     return (
         <View style={styles.container}>
             <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+            <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.scrollContent}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        tintColor="#FF3B30"
+                        colors={['#FF3B30']}
+                    />
+                }
+            >
                 <DashboardContent />
             </ScrollView>
         </View>
@@ -381,7 +470,14 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#FAFBFC',
+        backgroundColor: '#FCFCFD',
+    },
+    emptyFeedText: {
+        textAlign: 'center',
+        padding: 40,
+        color: '#8E8E93',
+        fontWeight: '600',
+        fontSize: 14,
     },
     donorContainer: {
         flex: 1,
@@ -654,10 +750,10 @@ const styles = StyleSheet.create({
         paddingHorizontal: 24,
         alignItems: 'center',
         backgroundColor: '#FFFFFF',
-        borderBottomLeftRadius: 32,
-        borderBottomRightRadius: 32,
-        paddingBottom: 24,
-        marginBottom: 16,
+        borderBottomLeftRadius: 28,
+        borderBottomRightRadius: 28,
+        paddingBottom: 16,
+        marginBottom: 12,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.02,
@@ -894,15 +990,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 24,
         marginBottom: 24,
     },
-    heroCard: {
-        borderRadius: 28,
-        padding: 24,
-        elevation: 8,
-        shadowColor: '#FF3B30',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.2,
-        shadowRadius: 20,
-    },
+
     heroBadge: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -1321,5 +1409,246 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '800',
         color: '#1C1C1E',
+    },
+    // Modern Donor UI Styles
+    heroCard: {
+        borderRadius: 24,
+        padding: 24,
+        shadowColor: '#D32F2F',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.2,
+        shadowRadius: 16,
+        elevation: 8,
+    },
+    heroRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    heroInfo: {
+        flex: 1,
+        paddingRight: 16,
+    },
+    bloodTag: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFFFFF',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 8,
+        alignSelf: 'flex-start',
+        marginBottom: 12,
+        gap: 6,
+    },
+    bloodTagText: {
+        fontSize: 11,
+        fontWeight: '900',
+        color: '#D32F2F',
+    },
+    heroTitleModern: {
+        fontSize: 22,
+        fontWeight: '900',
+        color: '#FFFFFF',
+        lineHeight: 28,
+        marginBottom: 4,
+    },
+    heroSubModern: {
+        fontSize: 13,
+        color: 'rgba(255,255,255,0.8)',
+        fontWeight: '500',
+        marginBottom: 20,
+    },
+    heroBtnModern: {
+        backgroundColor: '#FFFFFF',
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        borderRadius: 20,
+        alignSelf: 'flex-start',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    heroBtnTextModern: {
+        fontSize: 14,
+        fontWeight: '800',
+        color: '#D32F2F',
+    },
+    heroProgress: {
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    progressCircle: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        borderWidth: 6,
+        borderColor: 'rgba(255,255,255,0.3)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    progressText: {
+        fontSize: 18,
+        fontWeight: '900',
+        color: '#FFFFFF',
+    },
+    progressLabel: {
+        fontSize: 10,
+        color: 'rgba(255,255,255,0.8)',
+        fontWeight: '600',
+    },
+    statsStripContainer: {
+        paddingHorizontal: 20,
+        marginBottom: 24,
+    },
+    statsStrip: {
+        flexDirection: 'row',
+        backgroundColor: '#FFFFFF',
+        borderRadius: 16,
+        paddingVertical: 16,
+        paddingHorizontal: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.03,
+        shadowRadius: 10,
+        elevation: 2,
+        justifyContent: 'space-around',
+        alignItems: 'center',
+    },
+    statItemModern: {
+        alignItems: 'center',
+        flex: 1,
+    },
+    statValModern: {
+        fontSize: 20,
+        fontWeight: '900',
+        color: '#1C1C1E',
+    },
+    statLabModern: {
+        fontSize: 11,
+        color: '#8E8E93',
+        fontWeight: '600',
+        marginTop: 2,
+    },
+    statDivider: {
+        width: 1,
+        height: 24,
+        backgroundColor: '#F2F2F7',
+    },
+    actionGrid: {
+        flexDirection: 'row',
+        paddingHorizontal: 20,
+        gap: 16,
+        marginBottom: 32,
+    },
+    actionCardBig: {
+        flex: 1,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 20,
+        padding: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.03,
+        shadowRadius: 10,
+        elevation: 2,
+    },
+    actionIconCircle: {
+        width: 48,
+        height: 48,
+        borderRadius: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    actionTitle: {
+        fontSize: 16,
+        fontWeight: '800',
+        color: '#1C1C1E',
+        marginBottom: 4,
+    },
+    actionSub: {
+        fontSize: 12,
+        color: '#8E8E93',
+        fontWeight: '500',
+    },
+    sectionContainer: {
+        marginBottom: 24,
+    },
+    tipsScroll: {
+        paddingHorizontal: 20,
+        gap: 12,
+    },
+    tipCard: {
+        backgroundColor: '#FFFFFF',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderRadius: 14,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        borderWidth: 1,
+        borderColor: '#F2F2F7',
+    },
+    tipIcon: {
+        width: 32,
+        height: 32,
+        borderRadius: 10,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    tipText: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#1C1C1E',
+    },
+    impactCardModern: {
+        marginHorizontal: 20,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 20,
+        padding: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.04,
+        shadowRadius: 10,
+        elevation: 2,
+    },
+    impactRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    impactIconModern: {
+        width: 48,
+        height: 48,
+        borderRadius: 16,
+        backgroundColor: '#FF3B30',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 14,
+    },
+    impactContent: {
+        flex: 1,
+    },
+    impactTitleModern: {
+        fontSize: 16,
+        fontWeight: '900',
+        color: '#1C1C1E',
+    },
+    impactDate: {
+        fontSize: 13,
+        color: '#8E8E93',
+        fontWeight: '500',
+        marginTop: 2,
+    },
+    impactBadge: {
+        backgroundColor: '#EAFCF0',
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 8,
+    },
+    impactBadgeText: {
+        fontSize: 11,
+        fontWeight: '900',
+        color: '#34C759',
     },
 });
