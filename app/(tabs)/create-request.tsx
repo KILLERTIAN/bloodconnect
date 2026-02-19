@@ -324,7 +324,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.03,
         shadowRadius: 15,
-        elevation: 4,
         zIndex: 10,
     },
     header: {
@@ -390,7 +389,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.2,
         shadowRadius: 8,
-        elevation: 4,
     },
     tabIcon: {
         marginBottom: 0,
@@ -426,7 +424,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.02,
         shadowRadius: 10,
-        elevation: 2,
     },
     fieldLabel: {
         fontSize: 14,
@@ -486,7 +483,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
         shadowRadius: 4,
-        elevation: 2,
     },
     selectorBtnText: {
         fontSize: 20,
@@ -593,7 +589,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.2,
         shadowRadius: 8,
-        elevation: 4,
     },
     sliderLabels: {
         flexDirection: 'row',
@@ -662,7 +657,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.2, // Reduced for premium feel
         shadowRadius: 15,
-        elevation: 10,
     },
     mainActionGradient: {
         flexDirection: 'row',

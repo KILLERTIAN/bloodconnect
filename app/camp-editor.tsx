@@ -1,4 +1,5 @@
 import { useAuth } from '@/context/AuthContext';
+import { useDialog } from '@/context/DialogContext';
 import { sync } from '@/lib/database';
 import { createEvent, Event, getEventById, updateEvent } from '@/lib/events.service';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -9,7 +10,6 @@ import { ArrowLeft, Calendar, Clock, Eye, Image as ImageIcon, MapPin, Phone, Sav
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     Image,
     KeyboardAvoidingView,
     Modal,
@@ -19,7 +19,7 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    View,
+    View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -28,6 +28,7 @@ export default function CampEditorScreen() {
     const { user, role } = useAuth();
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const { showDialog } = useDialog();
 
     const [loading, setLoading] = useState(!!id);
     const [submitting, setSubmitting] = useState(false);
@@ -62,12 +63,11 @@ export default function CampEditorScreen() {
             if (event) {
                 setForm(event);
             } else {
-                Alert.alert('Error', 'Event not found');
-                router.back();
+                showDialog('Error', 'Event not found', 'error', [{ label: 'OK', onPress: () => router.back() }]);
             }
         } catch (e) {
             console.error(e);
-            Alert.alert('Error', 'Failed to load event');
+            showDialog('Error', 'Failed to load event', 'error');
         } finally {
             setLoading(false);
         }
@@ -102,7 +102,7 @@ export default function CampEditorScreen() {
 
     const handleSubmit = async () => {
         if (!form.title || !form.organization_name || !form.poc_name || !form.poc_phone || !form.location) {
-            Alert.alert('Missing Fields', 'Please fill all required fields marked with *');
+            showDialog('Missing Fields', 'Please fill all required fields marked with *', 'warning');
             return;
         }
 
@@ -118,11 +118,11 @@ export default function CampEditorScreen() {
                     } catch (syncError) {
                         console.log('⚠️ Camp updated locally, will sync when online');
                     }
-                    Alert.alert('Success', 'Camp updated successfully', [
-                        { text: 'OK', onPress: () => router.back() }
+                    showDialog('Success', 'Camp updated successfully', 'success', [
+                        { label: 'OK', onPress: () => router.back() }
                     ]);
                 } else {
-                    Alert.alert('Error', 'You do not have permission to edit this camp');
+                    showDialog('Error', 'You do not have permission to edit this camp', 'error');
                 }
             } else {
                 const newId = await createEvent({
@@ -130,9 +130,9 @@ export default function CampEditorScreen() {
                     expected_donors: Number(form.expected_donors) || 0,
                     created_by: user!.id,
                 } as any);
-                
+
                 console.log('✅ Camp created with ID:', newId);
-                
+
                 // Sync with Turso after creation
                 try {
                     await sync();
@@ -140,14 +140,14 @@ export default function CampEditorScreen() {
                 } catch (syncError) {
                     console.log('⚠️ Camp saved locally, will sync when online');
                 }
-                
-                Alert.alert('Success', 'Camp created successfully! It will appear in the events feed.', [
-                    { text: 'OK', onPress: () => router.back() }
+
+                showDialog('Success', 'Camp created successfully! It will appear in the events feed.', 'success', [
+                    { label: 'OK', onPress: () => router.back() }
                 ]);
             }
         } catch (e: any) {
             console.error('❌ Camp save error:', e);
-            Alert.alert('Error', e.message || 'Failed to save camp');
+            showDialog('Error', e.message || 'Failed to save camp', 'error');
             setSubmitting(false);
         }
     };

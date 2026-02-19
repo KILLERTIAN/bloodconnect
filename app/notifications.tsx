@@ -255,7 +255,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.03,
         shadowRadius: 20,
-        elevation: 4,
         zIndex: 10,
     },
     headerTop: {
@@ -344,7 +343,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 15 },
         shadowOpacity: 0.08,
         shadowRadius: 25,
-        elevation: 10,
         borderWidth: 1,
         borderColor: '#FFEBEA',
     },
@@ -440,7 +438,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 5 },
         shadowOpacity: 0.02,
         shadowRadius: 10,
-        elevation: 2,
     },
     iconBox: {
         width: 52,

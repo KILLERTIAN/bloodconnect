@@ -230,7 +230,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.03,
         shadowRadius: 10,
-        elevation: 4,
         zIndex: 10,
     },
     header: {
@@ -294,7 +293,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.3,
         shadowRadius: 20,
-        elevation: 10,
     },
     timeHeader: {
         gap: 6,
@@ -340,7 +338,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.02,
         shadowRadius: 10,
-        elevation: 2,
     },
     timelineContainer: {
         flexDirection: 'row',

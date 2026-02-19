@@ -15,8 +15,20 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
             try {
                 const database = await getDB();
                 if (mounted) {
-                    await migrateDbIfNeeded(database);
-                    setDb(database);
+                    try {
+                        await migrateDbIfNeeded(database);
+                        setDb(database);
+                    } catch (migrationError: any) {
+                        // If migration failed due to a reset occurring internally, try acquiring DB again
+                        console.log('Migration produced error, attempting Re-Init:', migrationError);
+                        if (migrationError?.message?.includes('closed') || migrationError?.message?.includes('reset')) {
+                            const freshDb = await getDB();
+                            await migrateDbIfNeeded(freshDb);
+                            setDb(freshDb);
+                        } else {
+                            throw migrationError;
+                        }
+                    }
                 }
             } catch (e: any) {
                 console.error('Database init failed:', e);

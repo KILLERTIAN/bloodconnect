@@ -67,7 +67,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 12 },
         shadowOpacity: 0.3,
         shadowRadius: 24,
-        elevation: 12,
     },
     title: {
         color: '#1C1C1E',

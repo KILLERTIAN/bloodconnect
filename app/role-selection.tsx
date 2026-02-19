@@ -132,7 +132,6 @@ const styles = StyleSheet.create({
     roleCard: {
         backgroundColor: '#FFFFFF',
         borderRadius: 20,
-        elevation: 0,
         shadowColor: 'transparent',
     },
     cardContent: {

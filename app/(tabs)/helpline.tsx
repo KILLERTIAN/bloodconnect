@@ -6,10 +6,17 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import {
     Activity,
+    Award,
+    Building2,
     Check,
     Droplet,
+    MapPin,
+    Navigation,
     Phone,
-    Plus, Radio, User, X
+    Plus,
+    Radio,
+    User,
+    X
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -149,59 +156,61 @@ export default function HelplineScreen() {
     const renderRequest = ({ item }: { item: HelplineRequest }) => {
         const uc = URGENCY_CONFIG[item.urgency] || URGENCY_CONFIG.normal;
         const canManage = role === 'admin' || role === 'helpline' || role === 'manager';
+
         return (
             <View style={styles.requestCard}>
                 <View style={styles.requestHeader}>
-                    <View style={[styles.bloodBadge, { backgroundColor: '#FFEBEA' }]}>
-                        <Text style={styles.bloodText}>{item.blood_group}</Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                        <Text style={styles.patientName}>{item.patient_name}</Text>
-                        <Text style={styles.hospitalName}>{item.hospital} • {item.city}</Text>
-                    </View>
-                    <View style={styles.rightBadges}>
-                        <View style={[styles.urgencyBadge, { backgroundColor: uc.bg }]}>
-                            <Text style={[styles.urgencyText, { color: uc.color }]}>{uc.label}</Text>
+                    <View style={styles.requestTopRow}>
+                        <View style={[styles.bloodBadgeCompact, { backgroundColor: '#FFEBEA' }]}>
+                            <Text style={styles.bloodTextCompact}>{item.blood_group}</Text>
                         </View>
-                        {item.is_live ? (
-                            <View style={styles.liveBadge}>
-                                <Radio size={10} color="#FF3B30" />
-                                <Text style={styles.liveText}>LIVE</Text>
+                        <View style={styles.headerInfo}>
+                            <Text style={styles.patientName} numberOfLines={1}>{item.patient_name}</Text>
+                            <View style={styles.hospitalRow}>
+                                <Building2 size={12} color="#8E8E93" />
+                                <Text style={styles.hospitalName} numberOfLines={1}>{item.hospital}</Text>
                             </View>
-                        ) : null}
-                    </View>
-                </View>
-
-                <View style={styles.requestMeta}>
-                    <View style={styles.metaChip}>
-                        <Droplet size={12} color="#FF3B30" />
-                        <Text style={styles.metaChipText}>{item.units_required} units • {item.blood_component}</Text>
-                    </View>
-                    <View style={styles.metaChip}>
-                        <Phone size={12} color="#8E8E93" />
-                        <Text style={styles.metaChipText}>{item.attender_contact}</Text>
-                    </View>
-                    {item.required_till ? (
-                        <View style={styles.metaChip}>
-                            <Activity size={12} color="#8E8E93" />
-                            <Text style={styles.metaChipText}>Till {item.required_till}</Text>
                         </View>
-                    ) : null}
+                        <View style={styles.urgencyWrapper}>
+                            <View style={[styles.urgencyBadge, { backgroundColor: uc.bg }]}>
+                                <Text style={[styles.urgencyText, { color: uc.color }]}>{uc.label}</Text>
+                            </View>
+                            {item.is_live ? (
+                                <View style={styles.liveIndicator}>
+                                    <View style={styles.livePulse} />
+                                    <Text style={styles.liveTextLabel}>LIVE</Text>
+                                </View>
+                            ) : null}
+                        </View>
+                    </View>
                 </View>
 
-                <View style={styles.requestActions}>
-                    <Text style={styles.statusText}>{item.status.replace('_', ' ').toUpperCase()}</Text>
-                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                <View style={styles.requestDetailRow}>
+                    <View style={styles.detailItem}>
+                        <MapPin size={14} color="#8E8E93" />
+                        <Text style={styles.detailText}>{item.city}</Text>
+                    </View>
+                    <View style={styles.detailItem}>
+                        <Droplet size={14} color="#FF3B30" />
+                        <Text style={styles.detailText}>{item.units_required} Units • {item.blood_component}</Text>
+                    </View>
+                </View>
+
+                <View style={styles.requestFooter}>
+                    <View style={styles.statusBadge}>
+                        <Text style={styles.statusText}>{item.status.replace('_', ' ').toUpperCase()}</Text>
+                    </View>
+                    <View style={styles.cardActions}>
                         {canManage && !item.is_live && item.status === 'open' && (
-                            <TouchableOpacity style={styles.liveBtn} onPress={() => handleMakeLive(item)}>
-                                <Radio size={14} color="#FF3B30" />
-                                <Text style={styles.liveBtnText}>Go Live</Text>
+                            <TouchableOpacity style={styles.actionBtnOutline} onPress={() => handleMakeLive(item)}>
+                                <Radio size={16} color="#FF3B30" />
+                                <Text style={styles.actionBtnTextOutline}>Go Live</Text>
                             </TouchableOpacity>
                         )}
                         {(item.is_live || role === 'volunteer' || role === 'helpline') && (
-                            <TouchableOpacity style={styles.callBtn} onPress={() => handleOpenCallModal(item)}>
-                                <Phone size={14} color="#FFFFFF" />
-                                <Text style={styles.callBtnText}>Call Donors</Text>
+                            <TouchableOpacity style={styles.actionBtnSolid} onPress={() => handleOpenCallModal(item)}>
+                                <Phone size={16} color="#FFFFFF" />
+                                <Text style={styles.actionBtnTextSolid}>Call Donors</Text>
                             </TouchableOpacity>
                         )}
                     </View>
@@ -265,13 +274,13 @@ export default function HelplineScreen() {
             <Modal visible={showAddModal} animationType="slide" presentationStyle="pageSheet">
                 <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
                     <View style={styles.modalContainer}>
-                        <View style={[styles.modalHeader, { paddingTop: Platform.OS === 'ios' ? 20 : insets.top + 10 }]}>
+                        <View style={[styles.modalHeader, { paddingTop: Platform.OS === 'android' ? insets.top + 16 : 20, paddingBottom: 16 }]}>
                             <TouchableOpacity onPress={() => setShowAddModal(false)} style={styles.modalCloseBtn}>
                                 <X size={24} color="#8E8E93" />
                             </TouchableOpacity>
                             <Text style={styles.modalTitle}>New Request</Text>
                             <TouchableOpacity onPress={handleCreate} style={styles.modalSaveBtn}>
-                                <Check size={24} color="#FF3B30" />
+                                <Check size={24} color="#34C759" />
                             </TouchableOpacity>
                         </View>
                         <ScrollView style={styles.modalScroll} keyboardShouldPersistTaps="handled">
@@ -354,89 +363,134 @@ export default function HelplineScreen() {
             {/* Call Donors Modal */}
             <Modal visible={showCallModal} animationType="slide" presentationStyle="pageSheet">
                 <View style={styles.modalContainer}>
-                    <View style={styles.modalHeader}>
-                        <TouchableOpacity onPress={() => { setShowCallModal(false); setSelectedDonor(null); clearInterval(timerRef.current); }}>
-                            <X size={24} color="#1C1C1E" />
+                    <View style={[styles.modalHeader, { paddingTop: Platform.OS === 'android' ? insets.top + 16 : 20, paddingBottom: 16 }]}>
+                        <TouchableOpacity
+                            onPress={() => { setShowCallModal(false); setSelectedDonor(null); clearInterval(timerRef.current); }}
+                            style={styles.modalCloseBtn}
+                        >
+                            <X size={24} color="#8E8E93" />
                         </TouchableOpacity>
-                        <Text style={styles.modalTitle}>
-                            {selectedRequest ? `${selectedRequest.blood_group} Donors` : 'Donors'}
-                        </Text>
-                        <View style={{ width: 24 }} />
+                        <View style={styles.modalCenterTitle}>
+                            <Text style={styles.modalTitle}>
+                                {selectedRequest ? `${selectedRequest.blood_group} Donors` : 'Call Donors'}
+                            </Text>
+                            <Text style={styles.modalSubtitle}>{donors.length} compatible matches found</Text>
+                        </View>
+                        <View style={{ width: 44 }} />
                     </View>
 
                     {selectedDonor ? (
-                        // Active call view
                         <View style={styles.callView}>
-                            <View style={styles.callAvatar}>
-                                <User size={40} color="#FFFFFF" />
-                            </View>
-                            <Text style={styles.callName}>{selectedDonor.name}</Text>
-                            <Text style={styles.callPhone}>{selectedDonor.phone}</Text>
-                            <Text style={styles.callTimer}>{formatTimer(callTimer)}</Text>
-
-                            <View style={styles.formGroup}>
-                                <Text style={styles.formLabel}>Call Outcome *</Text>
-                                <View style={styles.chipRow}>
-                                    {['interested', 'not_interested', 'no_answer', 'callback', 'donated'].map(o => (
-                                        <TouchableOpacity
-                                            key={o}
-                                            style={[styles.chip, callOutcome === o && styles.chipActiveRed]}
-                                            onPress={() => setCallOutcome(o)}
-                                        >
-                                            <Text style={[styles.chipText, callOutcome === o && { color: '#FFFFFF' }]}>
-                                                {o.replace('_', ' ')}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    ))}
+                            <LinearGradient
+                                colors={['#F8F9FB', '#FFFFFF']}
+                                style={styles.callCard}
+                            >
+                                <View style={styles.activeCallHeader}>
+                                    <View style={styles.pulseContainer}>
+                                        <View style={styles.pulseRing} />
+                                        <View style={styles.callAvatar}>
+                                            <User size={32} color="#FFFFFF" />
+                                        </View>
+                                    </View>
+                                    <Text style={styles.callStatus}>IN CALL</Text>
+                                    <Text style={styles.callTimerText}>{formatTimer(callTimer)}</Text>
                                 </View>
-                            </View>
 
-                            <View style={styles.formGroup}>
-                                <Text style={styles.formLabel}>Remarks * (Required)</Text>
-                                <TextInput
-                                    style={[styles.formInput, { height: 80, textAlignVertical: 'top' }]}
-                                    placeholder="Enter call remarks before closing..."
-                                    placeholderTextColor="#C7C7CC"
-                                    value={callRemarks}
-                                    onChangeText={setCallRemarks}
-                                    multiline
-                                />
-                            </View>
+                                <View style={styles.callerInfo}>
+                                    <Text style={styles.callNameLarge}>{selectedDonor.name}</Text>
+                                    <Text style={styles.callPhoneLarge}>{selectedDonor.phone}</Text>
+                                </View>
 
-                            <TouchableOpacity style={styles.endCallBtn} onPress={handleEndCall}>
-                                <Text style={styles.endCallText}>End Call & Save</Text>
-                            </TouchableOpacity>
+                                <View style={styles.outcomeSection}>
+                                    <Text style={styles.formLabelSmall}>CALL OUTCOME</Text>
+                                    <View style={styles.outcomeGrid}>
+                                        {[
+                                            { id: 'interested', label: 'Interested', color: '#34C759' },
+                                            { id: 'callback', label: 'Call Back', color: '#FF9500' },
+                                            { id: 'not_interested', label: 'Not Today', color: '#8E8E93' },
+                                            { id: 'donated', label: 'Donated', color: '#007AFF' },
+                                            { id: 'no_answer', label: 'No Answer', color: '#FF3B30' },
+                                        ].map(o => (
+                                            <TouchableOpacity
+                                                key={o.id}
+                                                style={[
+                                                    styles.outcomeBtn,
+                                                    callOutcome === o.id && { backgroundColor: o.color, borderColor: o.color }
+                                                ]}
+                                                onPress={() => setCallOutcome(o.id)}
+                                            >
+                                                <Text style={[styles.outcomeBtnText, callOutcome === o.id && { color: '#FFFFFF' }]}>
+                                                    {o.label}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                </View>
+
+                                <View style={styles.remarksContainer}>
+                                    <Text style={styles.formLabelSmall}>LOG REMARKS</Text>
+                                    <TextInput
+                                        style={styles.remarksInput}
+                                        placeholder="Add any notes from the donor..."
+                                        placeholderTextColor="#C7C7CC"
+                                        value={callRemarks}
+                                        onChangeText={setCallRemarks}
+                                        multiline
+                                    />
+                                </View>
+
+                                <TouchableOpacity style={styles.saveCallBtn} onPress={handleEndCall}>
+                                    <Check size={20} color="#FFFFFF" />
+                                    <Text style={styles.saveCallText}>Save Call Log</Text>
+                                </TouchableOpacity>
+                            </LinearGradient>
                         </View>
                     ) : (
-                        // Donor list
                         <FlatList
                             data={donors}
                             keyExtractor={item => String(item.id)}
-                            contentContainerStyle={styles.list}
+                            contentContainerStyle={styles.donorList}
                             ListHeaderComponent={
-                                <Text style={styles.donorListHint}>
-                                    Sorted by location match and last donation date. Tap Call to initiate.
-                                </Text>
+                                <View style={styles.listHintBox}>
+                                    <Navigation size={14} color="#007AFF" />
+                                    <Text style={styles.donorListHint}>
+                                        Donors are ranked by proximity to hospital first, then by donation eligibility.
+                                    </Text>
+                                </View>
                             }
-                            renderItem={({ item }) => (
-                                <View style={styles.donorCard}>
-                                    <View style={[styles.bloodBadge, { backgroundColor: '#FFEBEA' }]}>
-                                        <Text style={styles.bloodText}>{item.blood_group}</Text>
+                            renderItem={({ item, index }) => (
+                                <View style={styles.premiumDonorCard}>
+                                    <View style={styles.donorAvatarBase}>
+                                        <Text style={styles.donorInitial}>{item.name.charAt(0)}</Text>
                                     </View>
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={styles.donorName}>{item.name}</Text>
-                                        <Text style={styles.donorMeta}>{item.city} • Last: {item.last_donation_date || 'Never'}</Text>
+                                    <View style={styles.donorInfoMain}>
+                                        <Text style={styles.donorNameText}>{item.name}</Text>
+                                        <Text style={styles.donorMetaText}>{item.city} • {item.location || 'Local'}</Text>
+                                        <View style={styles.donorStatsRow}>
+                                            <View style={styles.donorStatItem}>
+                                                <Award size={10} color="#FF9500" />
+                                                <Text style={styles.donorStatLabel}>{item.total_donations || 0} Donations</Text>
+                                            </View>
+                                            <View style={styles.donorStatItem}>
+                                                <Activity size={10} color="#34C759" />
+                                                <Text style={styles.donorStatLabel}>Last: {item.last_donation_date || 'Never'}</Text>
+                                            </View>
+                                        </View>
                                     </View>
-                                    <TouchableOpacity style={styles.callDonorBtn} onPress={() => handleCall(item)}>
-                                        <Phone size={16} color="#FFFFFF" />
+                                    <TouchableOpacity style={styles.callActionBtn} onPress={() => handleCall(item)}>
+                                        <Phone size={18} color="#FFFFFF" fill="#FFFFFF" />
                                     </TouchableOpacity>
                                 </View>
                             )}
                             ListEmptyComponent={
-                                <View style={styles.emptyState}>
-                                    <User size={40} color="#C7C7CC" />
-                                    <Text style={styles.emptyText}>No matching donors</Text>
-                                    <Text style={styles.emptySubText}>No {selectedRequest?.blood_group} donors in database</Text>
+                                <View style={styles.emptyCallState}>
+                                    <View style={styles.emptyIconCircle}>
+                                        <User size={40} color="#C7C7CC" />
+                                    </View>
+                                    <Text style={styles.emptyCallText}>No matching donors</Text>
+                                    <Text style={styles.emptyCallSubText}>
+                                        We couldn't find any available {selectedRequest?.blood_group} donors in the database for this area.
+                                    </Text>
                                 </View>
                             }
                         />
@@ -449,65 +503,95 @@ export default function HelplineScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#F8F9FB' },
-    header: { paddingHorizontal: 24, paddingBottom: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
-    headerSub: { color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: '700', letterSpacing: 1 },
-    headerTitle: { color: '#FFFFFF', fontSize: 28, fontWeight: '900', letterSpacing: -0.5 },
-    headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
-    tabBar: { flexDirection: 'row', backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#F2F2F7' },
-    tab: { flex: 1, paddingVertical: 14, alignItems: 'center' },
-    tabActive: { borderBottomWidth: 2, borderBottomColor: '#FF3B30' },
+    header: { paddingHorizontal: 24, paddingBottom: 24, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+    headerSub: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
+    headerTitle: { color: '#FFFFFF', fontSize: 26, fontWeight: '900', letterSpacing: -0.5 },
+    headerBtn: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+    tabBar: { flexDirection: 'row', backgroundColor: '#FFFFFF', paddingHorizontal: 16, paddingTop: 8, borderBottomWidth: 1, borderBottomColor: '#F2F2F7' },
+    tab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 3, borderBottomColor: 'transparent' },
+    tabActive: { borderBottomColor: '#FF3B30' },
     tabText: { fontSize: 14, fontWeight: '700', color: '#8E8E93' },
-    tabTextActive: { color: '#FF3B30' },
-    list: { padding: 16, gap: 12 },
-    requestCard: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 3 },
-    requestHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
-    bloodBadge: { width: 48, height: 48, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
-    bloodText: { fontSize: 14, fontWeight: '900', color: '#FF3B30' },
-    patientName: { fontSize: 16, fontWeight: '800', color: '#1C1C1E' },
-    hospitalName: { fontSize: 12, color: '#8E8E93', fontWeight: '600', marginTop: 2 },
-    rightBadges: { gap: 4, alignItems: 'flex-end' },
-    urgencyBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+    tabTextActive: { color: '#1C1C1E' },
+    list: { padding: 16, gap: 16 },
+    requestCard: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.05, shadowRadius: 15, borderWidth: 1, borderColor: '#F2F2F7' },
+    requestHeader: { marginBottom: 12 },
+    requestTopRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    bloodBadgeCompact: { width: 44, height: 44, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+    bloodTextCompact: { fontSize: 13, fontWeight: '900', color: '#FF3B30' },
+    headerInfo: { flex: 1 },
+    patientName: { fontSize: 17, fontWeight: '800', color: '#1C1C1E' },
+    hospitalRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+    hospitalName: { fontSize: 12, color: '#8E8E93', fontWeight: '600' },
+    urgencyWrapper: { alignItems: 'flex-end', gap: 6 },
+    urgencyBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
     urgencyText: { fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
-    liveBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FFEBEA', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-    liveText: { fontSize: 10, fontWeight: '900', color: '#FF3B30' },
-    requestMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
-    metaChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#F2F2F7', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
-    metaChipText: { fontSize: 12, color: '#3C3C43', fontWeight: '600' },
-    requestActions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: '#F2F2F7', paddingTop: 10 },
-    statusText: { fontSize: 11, fontWeight: '800', color: '#8E8E93' },
-    liveBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FFEBEA', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 12 },
-    liveBtnText: { fontSize: 13, fontWeight: '800', color: '#FF3B30' },
-    callBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FF3B30', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 12 },
-    callBtnText: { fontSize: 13, fontWeight: '800', color: '#FFFFFF' },
-    centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    emptyState: { alignItems: 'center', paddingVertical: 60 },
-    emptyText: { fontSize: 18, fontWeight: '800', color: '#3C3C43', marginTop: 16 },
-    emptySubText: { fontSize: 14, color: '#8E8E93', fontWeight: '600', marginTop: 6 },
+    liveIndicator: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FFEBEA', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 },
+    livePulse: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#FF3B30' },
+    liveTextLabel: { fontSize: 10, fontWeight: '900', color: '#FF3B30' },
+    requestDetailRow: { flexDirection: 'row', gap: 12, marginTop: 16, paddingVertical: 12, borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#F8F9FB' },
+    detailItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    detailText: { fontSize: 13, color: '#3C3C43', fontWeight: '600' },
+    requestFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 },
+    statusBadge: { backgroundColor: '#F2F2F7', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+    statusText: { fontSize: 10, fontWeight: '800', color: '#8E8E93' },
+    cardActions: { flexDirection: 'row', gap: 8 },
+    actionBtnOutline: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, borderWidth: 1.5, borderColor: '#FFEBEA' },
+    actionBtnTextOutline: { fontSize: 13, fontWeight: '800', color: '#FF3B30' },
+    actionBtnSolid: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FF3B30', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12 },
+    actionBtnTextSolid: { fontSize: 13, fontWeight: '800', color: '#FFFFFF' },
     modalContainer: { flex: 1, backgroundColor: '#FFFFFF' },
-    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 20, borderBottomWidth: 1, borderBottomColor: '#F2F2F7', backgroundColor: '#FFFFFF' },
-    modalTitle: { fontSize: 19, fontWeight: '900', color: '#1C1C1E', letterSpacing: -0.5 },
+    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: '#F2F2F7' },
+    modalCenterTitle: { alignItems: 'center', flex: 1 },
+    modalTitle: { fontSize: 18, fontWeight: '900', color: '#1C1C1E', letterSpacing: -0.5 },
+    modalSubtitle: { fontSize: 12, color: '#8E8E93', fontWeight: '600', marginTop: 2 },
     modalCloseBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#F2F2F7', justifyContent: 'center', alignItems: 'center' },
     modalSaveBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFEBEA', justifyContent: 'center', alignItems: 'center' },
-    modalCancel: { fontSize: 16, color: '#8E8E93', fontWeight: '600' },
-    modalSave: { fontSize: 16, fontWeight: '800' },
-    modalScroll: { padding: 16 },
-    formGroup: { marginBottom: 16, paddingHorizontal: 16 },
-    formLabel: { fontSize: 13, fontWeight: '700', color: '#3C3C43', marginBottom: 8 },
-    formInput: { backgroundColor: '#FFFFFF', borderRadius: 14, paddingHorizontal: 16, height: 48, fontSize: 15, color: '#1C1C1E', borderWidth: 1, borderColor: '#E5E5EA' },
+    donorList: { padding: 20 },
+    listHintBox: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#F0F7FF', padding: 12, borderRadius: 14, marginBottom: 20 },
+    donorListHint: { fontSize: 12, color: '#007AFF', fontWeight: '600', flex: 1 },
+    premiumDonorCard: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#F2F2F7' },
+    donorAvatarBase: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#F2F2F7', justifyContent: 'center', alignItems: 'center' },
+    donorInitial: { fontSize: 18, fontWeight: '800', color: '#8E8E93' },
+    donorInfoMain: { flex: 1 },
+    donorNameText: { fontSize: 16, fontWeight: '800', color: '#1C1C1E' },
+    donorMetaText: { fontSize: 12, color: '#8E8E93', fontWeight: '600', marginTop: 2 },
+    donorStatsRow: { flexDirection: 'row', gap: 12, marginTop: 8 },
+    donorStatItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    donorStatLabel: { fontSize: 10, fontWeight: '700', color: '#3C3C43' },
+    callActionBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#34C759', justifyContent: 'center', alignItems: 'center', shadowColor: '#34C759', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8 },
+    emptyCallState: { alignItems: 'center', paddingVertical: 80, paddingHorizontal: 40 },
+    emptyIconCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#F2F2F7', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+    emptyCallText: { fontSize: 18, fontWeight: '900', color: '#1C1C1E', textAlign: 'center' },
+    emptyCallSubText: { fontSize: 14, color: '#8E8E93', fontWeight: '600', textAlign: 'center', marginTop: 8, lineHeight: 20 },
+    callView: { flex: 1, backgroundColor: '#F8F9FB', padding: 20 },
+    callCard: { backgroundColor: '#FFFFFF', borderRadius: 32, padding: 24, flex: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 20 },
+    activeCallHeader: { alignItems: 'center', marginBottom: 32 },
+    pulseContainer: { marginBottom: 20 },
+    pulseRing: { position: 'absolute', top: -10, left: -10, right: -10, bottom: -10, borderRadius: 60, borderWidth: 2, borderColor: '#FF3B30', opacity: 0.2 },
+    callAvatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#FF3B30', justifyContent: 'center', alignItems: 'center' },
+    callStatus: { fontSize: 12, fontWeight: '900', color: '#FF3B30', letterSpacing: 2, marginBottom: 8 },
+    callTimerText: { fontSize: 36, fontWeight: '900', color: '#1C1C1E' },
+    callerInfo: { alignItems: 'center', marginBottom: 32 },
+    callNameLarge: { fontSize: 28, fontWeight: '900', color: '#1C1C1E' },
+    callPhoneLarge: { fontSize: 18, color: '#8E8E93', fontWeight: '600', marginTop: 4 },
+    outcomeSection: { marginBottom: 24 },
+    formLabelSmall: { fontSize: 11, fontWeight: '900', color: '#8E8E93', letterSpacing: 1, marginBottom: 12 },
+    outcomeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    outcomeBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5, borderColor: '#F2F2F7', backgroundColor: '#FFFFFF' },
+    outcomeBtnText: { fontSize: 12, fontWeight: '800', color: '#8E8E93' },
+    remarksContainer: { marginBottom: 32 },
+    remarksInput: { backgroundColor: '#F8F9FB', borderRadius: 16, padding: 16, height: 100, fontSize: 15, color: '#1C1C1E', textAlignVertical: 'top' },
+    saveCallBtn: { backgroundColor: '#1C1C1E', borderRadius: 18, paddingVertical: 18, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10 },
+    saveCallText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
+    formGroup: { marginBottom: 20 },
+    formLabel: { fontSize: 13, fontWeight: '900', color: '#8E8E93', marginBottom: 10, letterSpacing: 0.5 },
+    formInput: { backgroundColor: '#F2F2F7', borderRadius: 14, paddingHorizontal: 16, height: 48, fontSize: 15, color: '#1C1C1E', borderWidth: 1, borderColor: 'transparent' },
     chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, borderWidth: 1.5, borderColor: '#E5E5EA', backgroundColor: '#FFFFFF' },
     chipActiveRed: { backgroundColor: '#FF3B30', borderColor: '#FF3B30' },
     chipText: { fontSize: 13, fontWeight: '700', color: '#8E8E93' },
-    donorListHint: { fontSize: 13, color: '#8E8E93', fontWeight: '600', marginBottom: 12, textAlign: 'center' },
-    donorCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#FFFFFF', borderRadius: 16, padding: 14, marginBottom: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 2 },
-    donorName: { fontSize: 15, fontWeight: '800', color: '#1C1C1E' },
-    donorMeta: { fontSize: 12, color: '#8E8E93', fontWeight: '600', marginTop: 2 },
-    callDonorBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#34C759', justifyContent: 'center', alignItems: 'center' },
-    callView: { flex: 1, padding: 24, alignItems: 'center' },
-    callAvatar: { width: 100, height: 100, borderRadius: 50, backgroundColor: '#FF3B30', justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
-    callName: { fontSize: 24, fontWeight: '900', color: '#1C1C1E' },
-    callPhone: { fontSize: 16, color: '#8E8E93', fontWeight: '600', marginTop: 4, marginBottom: 8 },
-    callTimer: { fontSize: 32, fontWeight: '900', color: '#FF3B30', marginBottom: 24 },
-    endCallBtn: { backgroundColor: '#FF3B30', borderRadius: 18, paddingVertical: 16, paddingHorizontal: 32, marginTop: 16, width: '100%', alignItems: 'center' },
-    endCallText: { color: '#FFFFFF', fontSize: 17, fontWeight: '800' },
+    modalScroll: { padding: 20 },
+    centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    emptyState: { alignItems: 'center', paddingVertical: 80 },
+    emptyText: { fontSize: 18, fontWeight: '800', color: '#1C1C1E', marginTop: 16 },
 });

@@ -192,7 +192,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 40,
-        elevation: 10,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 12 },
         shadowOpacity: 0.15,
@@ -244,7 +243,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.2,
         shadowRadius: 15,
-        elevation: 8,
     },
     nextBtnText: {
         color: '#FFFFFF',

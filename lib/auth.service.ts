@@ -6,6 +6,7 @@ export interface User {
     email: string;
     phone: string;
     role: 'admin' | 'manager' | 'hr' | 'outreach' | 'volunteer' | 'helpline';
+    avatar_url?: string;
     is_active: number;
     created_at: string;
 }
@@ -66,10 +67,11 @@ export async function createUser(data: {
     phone: string;
     password: string;
     role: string;
+    avatar_url?: string;
 }): Promise<void> {
     await execute(
-        'INSERT INTO users (name, email, phone, password_hash, role) VALUES (?, ?, ?, ?, ?)',
-        [data.name, data.email.toLowerCase(), data.phone, data.password, data.role]
+        'INSERT INTO users (name, email, phone, password_hash, role, avatar_url) VALUES (?, ?, ?, ?, ?, ?)',
+        [data.name, data.email.toLowerCase(), data.phone, data.password, data.role, data.avatar_url]
     );
 }
 

@@ -179,7 +179,7 @@ export default function DonorDetailsScreen() {
                             </View>
                             <View style={styles.missionContent}>
                                 <Text style={styles.missionTitle}>Emergency Trauma Support</Text>
-                                <Text style={styles.missionMeta}>Oct 12, 2025 • Max Hospital</Text>
+                                <Text style={styles.missionMeta}>Oct 12, 2026 • Max Hospital</Text>
                             </View>
                             <View style={styles.pointsBadge}>
                                 <Text style={styles.pointsText}>+12 Pts</Text>
@@ -192,7 +192,7 @@ export default function DonorDetailsScreen() {
                             </View>
                             <View style={styles.missionContent}>
                                 <Text style={styles.missionTitle}>Scheduled Platelet Hub</Text>
-                                <Text style={styles.missionMeta}>Aug 05, 2025 • City Plaza</Text>
+                                <Text style={styles.missionMeta}>Aug 05, 2026 • City Plaza</Text>
                             </View>
                             <View style={styles.pointsBadgeAlt}>
                                 <Text style={styles.pointsTextAlt}>+8 Pts</Text>
@@ -330,7 +330,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.05,
         shadowRadius: 20,
-        elevation: 4,
     },
     statsRow: {
         flexDirection: 'row',
@@ -433,7 +432,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 5 },
         shadowOpacity: 0.02,
         shadowRadius: 15,
-        elevation: 2,
     },
     infoItem: {
         flexDirection: 'row',

@@ -1,3 +1,10 @@
+import { LogBox } from 'react-native';
+
+// Ignore specific warnings that are safe to ignore
+LogBox.ignoreLogs([
+  'Unsupported top level event type "topSvgLayout" dispatched',
+]);
+
 import { AuthProvider } from '@/context/AuthContext';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
@@ -6,6 +13,7 @@ import { useEffect } from 'react';
 import { MD3LightTheme, Provider as PaperProvider } from 'react-native-paper';
 import 'react-native-reanimated';
 
+import { DialogProvider } from '@/context/DialogContext';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { DatabaseProvider } from '@/lib/db-context';
 import { registerForPushNotificationsAsync } from '@/lib/notifications.service';
@@ -50,29 +58,28 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <PaperProvider theme={theme}>
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <DatabaseProvider>
-            <AppInitializer>
-              <Stack screenOptions={{ headerShown: false }}>
-                <Stack.Screen name="index" />
-                <Stack.Screen name="onboarding" />
-                <Stack.Screen name="login" />
-                <Stack.Screen name="role-selection" />
-                <Stack.Screen name="request-details" />
-                <Stack.Screen name="schedule-donation" />
-                <Stack.Screen name="donor-details" />
-                <Stack.Screen name="event-details" />
-                <Stack.Screen name="camp-editor" />
-                <Stack.Screen name="camp-manager" />
-                <Stack.Screen name="outreach" />
-                <Stack.Screen name="hr-dashboard" />
-                <Stack.Screen name="notifications" options={{ presentation: 'modal' }} />
-                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              </Stack>
-            </AppInitializer>
-          </DatabaseProvider>
-          <StatusBar style="auto" />
-        </ThemeProvider>
+        <DialogProvider>
+          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+            <DatabaseProvider>
+              <AppInitializer>
+                <Stack screenOptions={{ headerShown: false }}>
+                  <Stack.Screen name="index" />
+                  <Stack.Screen name="onboarding" />
+                  <Stack.Screen name="login" />
+                  <Stack.Screen name="role-selection" />
+                  <Stack.Screen name="request-details" />
+                  <Stack.Screen name="schedule-donation" />
+                  <Stack.Screen name="donor-details" />
+                  <Stack.Screen name="event-details" />
+                  <Stack.Screen name="camp-editor" />
+                  <Stack.Screen name="notifications" options={{ presentation: 'modal' }} />
+                  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                </Stack>
+              </AppInitializer>
+            </DatabaseProvider>
+            <StatusBar style="auto" />
+          </ThemeProvider>
+        </DialogProvider>
       </PaperProvider>
     </AuthProvider>
   );

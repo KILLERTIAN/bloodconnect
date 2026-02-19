@@ -4,9 +4,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import {
     Building2,
-    Check, ChevronLeft,
+    Check,
     ChevronRight, Filter, MapPin, Phone, Plus, Search, Tag, User,
-    X,
+    X
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -157,23 +157,25 @@ export default function OutreachScreen() {
 
     return (
         <View style={styles.container}>
-            <LinearGradient colors={['#FF9500', '#FF6B00']} style={[styles.header, { paddingTop: insets.top + 16 }]}>
-                <View style={styles.headerTitleRow}>
-                    <TouchableOpacity onPress={() => router.back()} style={styles.backBtnHeader}>
-                        <ChevronLeft size={24} color="#FFFFFF" />
-                    </TouchableOpacity>
-                    <View>
-                        <Text style={styles.headerSub}>Outreach Module</Text>
-                        <Text style={styles.headerTitle}>Lead Management</Text>
+            <LinearGradient
+                colors={['#FF9500', '#FF6B00']}
+                style={[styles.header, { paddingTop: insets.top + 10 }]}
+            >
+                <View style={styles.headerContent}>
+                    <View style={styles.headerTitleRow}>
+                        <View style={styles.titleContainer}>
+                            <Text style={styles.headerSub}>Outreach Module</Text>
+                            <Text style={styles.headerTitle} numberOfLines={1}>Lead Management</Text>
+                        </View>
                     </View>
-                </View>
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                    <TouchableOpacity style={styles.headerBtn} onPress={() => setShowFilterModal(true)}>
-                        <Filter size={20} color="#FFFFFF" />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.headerBtn} onPress={() => setShowAddModal(true)}>
-                        <Plus size={20} color="#FFFFFF" strokeWidth={3} />
-                    </TouchableOpacity>
+                    <View style={styles.headerActions}>
+                        <TouchableOpacity style={styles.headerBtn} onPress={() => setShowFilterModal(true)}>
+                            <Filter size={20} color="#FFFFFF" />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.headerBtn} onPress={() => setShowAddModal(true)}>
+                            <Plus size={20} color="#FFFFFF" strokeWidth={3} />
+                        </TouchableOpacity>
+                    </View>
                 </View>
             </LinearGradient>
 
@@ -183,6 +185,7 @@ export default function OutreachScreen() {
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={styles.summaryScrollContent}
+                    style={styles.summaryScroll}
                 >
                     {counts.map(c => (
                         <Chip
@@ -193,7 +196,7 @@ export default function OutreachScreen() {
                                 styles.summaryChip,
                                 filterStatus === c.key
                                     ? { backgroundColor: c.color, borderWidth: 0 }
-                                    : { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E5EA' }
+                                    : { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#F2F2F7' }
                             ]}
                             showSelectedCheck={false}
                             textStyle={[
@@ -245,7 +248,7 @@ export default function OutreachScreen() {
             <Modal visible={showAddModal} animationType="slide" presentationStyle="pageSheet">
                 <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
                     <View style={styles.modalContainer}>
-                        <View style={[styles.modalHeader, { paddingTop: Platform.OS === 'ios' ? 20 : insets.top + 10 }]}>
+                        <View style={[styles.modalHeader, { paddingTop: Platform.OS === 'android' ? insets.top + 16 : 20, paddingBottom: 16 }]}>
                             <TouchableOpacity onPress={() => setShowAddModal(false)} style={styles.modalCloseBtn}>
                                 <X size={24} color="#8E8E93" />
                             </TouchableOpacity>
@@ -322,25 +325,107 @@ export default function OutreachScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#F8F9FB' },
-    header: { paddingHorizontal: 20, paddingBottom: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
-    headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    backBtnHeader: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
-    headerSub: { color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: '700', letterSpacing: 1 },
-    headerTitle: { color: '#FFFFFF', fontSize: 28, fontWeight: '900', letterSpacing: -0.5 },
-    headerBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
-    summaryContainer: { marginBottom: 16 },
-    summaryScrollContent: { paddingHorizontal: 16, gap: 8 },
-    summaryChip: { borderRadius: 16 },
-    summaryChipText: { fontSize: 13, fontWeight: '700' },
-    searchContainer: { paddingHorizontal: 16, paddingBottom: 8 },
-    searchBar: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FFFFFF', borderRadius: 16, paddingHorizontal: 16, height: 46, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 },
-    searchInput: { flex: 1, fontSize: 15, color: '#1C1C1E' },
-    list: { padding: 16, gap: 12 },
-    leadCard: { backgroundColor: '#FFFFFF', borderRadius: 28, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.04, shadowRadius: 12, elevation: 3, borderWidth: 1, borderColor: '#F2F2F7' },
-    leadHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
+    container: { flex: 1, backgroundColor: '#FCFCFD' },
+    header: {
+        paddingHorizontal: 20,
+        paddingBottom: 24,
+    },
+    headerContent: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    headerTitleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        flex: 1,
+    },
+    titleContainer: {
+        flex: 1,
+    },
+    backBtnHeader: {
+        width: 40,
+        height: 40,
+        borderRadius: 12,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        justifyContent: 'center',
+        alignItems: 'center'
+    },
+    headerSub: {
+        color: 'rgba(255,255,255,0.8)',
+        fontSize: 12,
+        fontWeight: '700',
+        letterSpacing: 1,
+        textTransform: 'uppercase',
+    },
+    headerTitle: {
+        color: '#FFFFFF',
+        fontSize: 24,
+        fontWeight: '900',
+        letterSpacing: -0.5
+    },
+    headerActions: {
+        flexDirection: 'row',
+        gap: 10,
+        alignItems: 'center',
+    },
+    headerBtn: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        justifyContent: 'center',
+        alignItems: 'center'
+    },
+    summaryContainer: {
+        paddingVertical: 16,
+        backgroundColor: '#FFFFFF',
+        borderBottomWidth: 1,
+        borderBottomColor: '#F2F2F7',
+    },
+    summaryScroll: {
+        flexGrow: 0,
+    },
+    summaryScrollContent: {
+        paddingHorizontal: 20,
+        gap: 10
+    },
+    summaryChip: {
+        borderRadius: 14,
+        height: 38,
+    },
+    summaryChipText: { fontSize: 13, fontWeight: '800' },
+    searchContainer: { paddingHorizontal: 16, paddingVertical: 12 },
+    searchBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 16,
+        paddingHorizontal: 16,
+        height: 50,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.04,
+        shadowRadius: 10,
+    },
+    searchInput: { flex: 1, fontSize: 16, color: '#1C1C1E', fontWeight: '500' },
+    list: { padding: 16, gap: 16 },
+    leadCard: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 24,
+        padding: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.05,
+        shadowRadius: 15,
+        borderWidth: 1,
+        borderColor: '#F2F2F7'
+    },
+    leadHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 14 },
     orgIcon: { width: 44, height: 44, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
-    orgName: { fontSize: 16, fontWeight: '800', color: '#1C1C1E' },
+    orgName: { fontSize: 18, fontWeight: '900', color: '#1C1C1E', flex: 1 },
     orgCategory: { fontSize: 11, color: '#8E8E93', fontWeight: '700', marginTop: 2, letterSpacing: 0.5 },
     statusBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
     statusText: { fontSize: 11, fontWeight: '900', textTransform: 'uppercase' },

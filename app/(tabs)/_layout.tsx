@@ -1,6 +1,6 @@
 import { useAuth } from '@/context/AuthContext';
 import { Tabs } from 'expo-router';
-import { Building2, Calendar, LayoutGrid, Plus, Radio, UserCircle } from 'lucide-react-native';
+import { BarChart2, Building2, Calendar, LayoutGrid, MapPin, Plus, Radio, UserCircle } from 'lucide-react-native';
 import React from 'react';
 import { Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useTheme } from 'react-native-paper';
@@ -34,7 +34,6 @@ export default function TabLayout() {
           paddingBottom: Platform.OS === 'ios' ? 24 : 12,
           paddingTop: 12,
           height: Platform.OS === 'ios' ? 88 : 72,
-          elevation: 0,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: -2 },
           shadowOpacity: 0.06,
@@ -98,11 +97,31 @@ export default function TabLayout() {
         options={{
           title: 'Helpline',
           tabBarIcon: ({ color }) => <Radio size={24} color={color} />,
-          href: showHelpline ? undefined : null,
+          href: (showHelpline && !isAdmin) ? undefined : null,
         }}
       />
 
-      {/* 5. Profile - all roles */}
+      {/* 5. Outreach (Roles: Admin, Outreach) */}
+      <Tabs.Screen
+        name="outreach"
+        options={{
+          title: 'Outreach',
+          tabBarIcon: ({ color }) => <MapPin size={24} color={color} />,
+          href: (isOutreach && !isAdmin) ? undefined : null,
+        }}
+      />
+
+      {/* 6. HR Dashboard (Roles: Admin, HR) */}
+      <Tabs.Screen
+        name="hr-dashboard"
+        options={{
+          title: 'HR',
+          tabBarIcon: ({ color }) => <BarChart2 size={24} color={color} />,
+          href: (isAdmin || isHR) ? undefined : null,
+        }}
+      />
+
+      {/* 7. Profile - all roles */}
       <Tabs.Screen
         name="profile"
         options={{
@@ -111,8 +130,9 @@ export default function TabLayout() {
         }}
       />
 
-      {/* Hidden tab for events logic if needed, but we routes managers to management and others to events logic */}
+      {/* Hidden tech tabs */}
       <Tabs.Screen name="events" options={{ href: null }} />
+      <Tabs.Screen name="camp-manager" options={{ href: null }} />
     </Tabs>
   );
 }
@@ -135,7 +155,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.4,
     shadowRadius: 12,
-    elevation: 10,
   },
   fabPlaceholder: {
     flex: 1,

@@ -1,6 +1,7 @@
 import { getDonorAvatar } from '@/constants/AvatarMapping';
 import { useAuth } from '@/context/AuthContext';
 import { sync } from '@/lib/database';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import {
@@ -28,7 +29,6 @@ import React from 'react';
 import {
     Alert,
     Dimensions,
-    Image,
     ScrollView,
     StatusBar,
     StyleSheet,
@@ -83,15 +83,36 @@ const ROLE_THEMES = {
 };
 
 export default function ProfileScreen() {
-    const { logout, role } = useAuth();
+    const { logout, role, user } = useAuth();
     const router = useRouter();
     const insets = useSafeAreaInsets();
 
+    const userName = user?.name || 'User';
     const userRole = (role && ROLE_THEMES[role as keyof typeof ROLE_THEMES]) ? role : 'donor';
     const theme = ROLE_THEMES[userRole as keyof typeof ROLE_THEMES];
 
-    // Globally synchronized avatar for Rahul
-    const currentUserAvatar = getDonorAvatar('Rahul Sharma', 'male');
+    const roleLabels: Record<string, string> = {
+        admin: 'System Admin',
+        manager: 'Branch Manager',
+        hr: 'HR Manager',
+        outreach: 'Outreach Coordinator',
+        helpline: 'Helpline Executive',
+        volunteer: 'Lead Volunteer',
+        donor: 'Hero Donor'
+    };
+
+    const roleBios: Record<string, string> = {
+        admin: 'Node Master • Global Region',
+        manager: 'Operational Head • Main Branch',
+        hr: 'Personnel & Culture • Corporate',
+        outreach: 'Community Relations • Field',
+        helpline: 'Emergency Coordination • 24/7',
+        volunteer: 'Active Responder • Community',
+        donor: '8 Lives Saved • Mumbai, IN'
+    };
+
+    // Globally synchronized avatar for current user
+    const currentUserAvatar = user?.avatar_url || getDonorAvatar(userName, 'male');
 
     const handleLogout = () => {
         logout();
@@ -99,7 +120,7 @@ export default function ProfileScreen() {
     };
 
     const renderMenuItem = (item: any) => (
-        <TouchableOpacity key={item.label} style={styles.menuItem} activeOpacity={0.7}>
+        <TouchableOpacity key={item.label} style={styles.menuItem} activeOpacity={0.7} onPress={item.onPress}>
             <View style={[styles.menuIconBox, { backgroundColor: item.bgColor || '#F2F2F7' }]}>
                 <item.icon size={20} color={item.iconColor || '#1C1C1E'} />
             </View>
@@ -137,11 +158,11 @@ export default function ProfileScreen() {
                                 </View>
                             </View>
                             <View style={styles.userDetails}>
-                                <Text style={styles.userName}>Rahul Sharma</Text>
+                                <Text style={styles.userName}>{userName}</Text>
                                 <View style={styles.roleTag}>
-                                    <Text style={styles.roleTagText}>{theme.label}</Text>
+                                    <Text style={styles.roleTagText}>{roleLabels[role || 'donor'] || theme.label}</Text>
                                 </View>
-                                <Text style={styles.userBio}>{theme.bio}</Text>
+                                <Text style={styles.userBio}>{roleBios[role || 'donor'] || theme.bio}</Text>
                             </View>
                         </View>
                     </LinearGradient>
@@ -284,7 +305,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.1,
         shadowRadius: 8,
-        elevation: 4,
     },
     userName: {
         fontSize: 26,
@@ -326,7 +346,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 15 },
         shadowOpacity: 0.08,
         shadowRadius: 20,
-        elevation: 10,
     },
     statCard: {
         flex: 1,
@@ -376,7 +395,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 5 },
         shadowOpacity: 0.02,
         shadowRadius: 10,
-        elevation: 2,
     },
     menuItem: {
         flexDirection: 'row',

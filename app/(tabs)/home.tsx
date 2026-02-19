@@ -3,6 +3,7 @@ import { useAuth } from '@/context/AuthContext';
 import { sync } from '@/lib/database';
 import { Event, getAllEvents, getEventsByManager } from '@/lib/events.service';
 import { getDonors, getLiveHelplines, HelplineRequest } from '@/lib/helpline.service';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import {
@@ -23,10 +24,84 @@ import {
 } from 'lucide-react-native';
 import { useCallback, useEffect, useState } from 'react';
 import { Dimensions, RefreshControl, ScrollView, StatusBar, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Avatar, Text, useTheme } from 'react-native-paper';
+import { Text, useTheme } from 'react-native-paper';
+import Animated, {
+    FadeInDown,
+    FadeInRight,
+    useSharedValue,
+    withRepeat,
+    withSequence,
+    withTiming
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Circle, Path } from 'react-native-svg';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
+
+// Premium SVG Decorator for Background
+const BackgroundDoodles = () => (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <Svg height={height} width={width} style={StyleSheet.absoluteFill}>
+            {/* Top Right Wavy Layers */}
+            <Path
+                d={`M${width * 0.4} 0 Q${width * 0.7} 100 ${width} 40 L${width} 0 Z`}
+                fill="#E63946"
+                fillOpacity={0.07}
+            />
+            <Path
+                d={`M${width * 0.6} 0 Q${width * 0.8} 180 ${width} 120 L${width} 0 Z`}
+                fill="#E63946"
+                fillOpacity={0.12}
+            />
+
+            {/* Bottom Wavy Layers */}
+            <Path
+                d={`M0 ${height * 0.7} Q ${width * 0.3} ${height * 0.65} ${width} ${height * 0.75} L ${width} ${height} L 0 ${height} Z`}
+                fill="#ffeaeaff"
+                opacity="0.4"
+            />
+            <Path
+                d={`M0 ${height * 0.8} Q ${width * 0.6} ${height * 0.7} ${width} ${height * 0.85} L ${width} ${height} L 0 ${height} Z`}
+                fill="#ffe3e3ff"
+                opacity="0.6"
+            />
+        </Svg>
+    </View>
+);
+
+const FloatingDroplet = () => {
+    const translateY = useSharedValue(0);
+
+    useEffect(() => {
+        translateY.value = withRepeat(
+            withSequence(
+                withTiming(-15, { duration: 2500 }),
+                withTiming(0, { duration: 2500 })
+            ),
+            -1,
+            true
+        );
+    }, []);
+
+    return (
+        <Animated.View style={[styles.floatingDroplet]}>
+            <Svg width="180" height="200" viewBox="0 0 20 40">
+                <Path
+                    d="M20 0C20 0 0 16.6667 0 30C0 41.0457 8.9543 50 20 50C31.0457 50 40 41.0457 40 30C40 16.6667 20 0 20 0Z"
+                    fill="rgba(255, 253, 253, 0.12)"
+                />
+            </Svg>
+        </Animated.View>
+    );
+};
+
+const FloatingSiren = () => {
+    return (
+        <View style={styles.floatingSiren}>
+            <Siren size={120} color="rgba(255, 255, 255, 0.25)" strokeWidth={2} />
+        </View>
+    );
+};
 
 export default function DashboardScreen() {
     const { role, user } = useAuth();
@@ -41,11 +116,14 @@ export default function DashboardScreen() {
 
     const loadData = useCallback(async () => {
         try {
-            // Role specific data loading
-            if (role === 'admin' || role === 'manager') {
+            const isStaff = role && ['admin', 'manager', 'hr', 'outreach', 'helpline'].includes(role);
+
+            if (isStaff) {
+                // Fetch events based on role
                 const events = role === 'admin' ? await getAllEvents() : await getEventsByManager(user!.id);
                 setActiveEvents(events.filter(e => e.status !== 'closed'));
 
+                // Fetch global system stats
                 const helplines = await getLiveHelplines();
                 setCriticalRequests(helplines.filter(r => r.urgency === 'critical'));
 
@@ -68,7 +146,7 @@ export default function DashboardScreen() {
 
     const onRefresh = async () => {
         setRefreshing(true);
-        await sync(); // Sync with Turso if available
+        await sync();
         await loadData();
     };
 
@@ -88,98 +166,156 @@ export default function DashboardScreen() {
                     <View style={styles.notificationDot} />
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => router.push('/profile')} activeOpacity={0.7}>
-                    <Avatar.Image size={48} source={{ uri: avatarUri }} style={styles.avatarBorder} />
+                    <Image source={{ uri: avatarUri }} style={[styles.avatarBorder, { width: 48, height: 48, borderRadius: 24 }]} />
                 </TouchableOpacity>
             </View>
         </View>
     );
 
     const DashboardContent = () => {
-        const currentUserAvatar = getDonorAvatar('Rahul Sharma', 'male');
+        const userName = user?.name || 'User';
+        const userAvatar = user?.avatar_url || getDonorAvatar(userName, 'male');
+
+        const roleLabels: Record<string, { title: string; sub: string }> = {
+            admin: { title: userName, sub: 'System Admin' },
+            manager: { title: userName, sub: 'Branch Manager' },
+            hr: { title: userName, sub: 'HR Manager' },
+            outreach: { title: userName, sub: 'Outreach Coordinator' },
+            helpline: { title: userName, sub: 'Helpline Executive' },
+            volunteer: { title: userName, sub: 'Lead Volunteer' },
+            donor: { title: `Welcome, ${userName.split(' ')[0]}`, sub: 'Good Morning' }
+        };
+
+        const config = roleLabels[role || 'donor'] || roleLabels.donor;
 
         if (role === 'donor') {
             return (
                 <View style={styles.donorContainer}>
-                    {renderHeader('Welcome, Rahul', 'Good Morning', currentUserAvatar)}
+                    {renderHeader(config.title, config.sub, userAvatar)}
 
-                    {/* Modern Hero Section */}
-                    <View style={styles.heroSection}>
+                    <Animated.View
+                        entering={FadeInDown.delay(200).duration(800)}
+                        style={styles.heroSection}
+                    >
                         <LinearGradient
-                            colors={['#D32F2F', '#B71C1C']}
+                            colors={['#E53935', '#C62828']}
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 1 }}
-                            style={styles.heroCard}
+                            style={styles.heroCardPremium}
                         >
+                            <FloatingDroplet />
                             <View style={styles.heroRow}>
                                 <View style={styles.heroInfo}>
-                                    <View style={styles.bloodTag}>
-                                        <Droplet size={12} color="#D32F2F" fill="#D32F2F" />
-                                        <Text style={styles.bloodTagText}>A+ DONOR</Text>
+                                    <View style={styles.bloodTagPremium}>
+                                        <Droplet size={14} color="#E53935" fill="#E53935" />
+                                        <Text style={styles.bloodTagTextPremium}>A+ DONOR</Text>
                                     </View>
-                                    <Text style={styles.heroTitleModern}>You are eligible to donate!</Text>
-                                    <Text style={styles.heroSubModern}>Last donation was 3 months ago.</Text>
+                                    <Text style={styles.heroTitlePremium}>A Hero is Ready!</Text>
+                                    <Text style={styles.heroSubPremium}>You saved 3 lives last October. You can help again today.</Text>
 
                                     <TouchableOpacity
-                                        style={styles.heroBtnModern}
+                                        style={styles.heroBtnPremium}
                                         activeOpacity={0.9}
                                         onPress={() => router.push('/schedule-donation')}
                                     >
-                                        <Text style={styles.heroBtnTextModern}>Schedule Now</Text>
+                                        <Text style={styles.heroBtnTextPremium}>Schedule Now</Text>
+                                        <ChevronRight size={18} color="#E53935" strokeWidth={3} />
                                     </TouchableOpacity>
                                 </View>
-                                <View style={styles.heroProgress}>
-                                    <View style={styles.progressCircle}>
-                                        <Text style={styles.progressText}>100%</Text>
-                                        <Text style={styles.progressLabel}>Ready</Text>
+                                <View style={styles.heroProgressPremium}>
+                                    <View style={styles.progressCirclePremium}>
+                                        <Svg width="85" height="85" viewBox="0 0 100 100">
+                                            <Circle
+                                                cx="50"
+                                                cy="50"
+                                                r="45"
+                                                stroke="rgba(255,255,255,0.2)"
+                                                strokeWidth="8"
+                                                fill="none"
+                                            />
+                                            <Circle
+                                                cx="50"
+                                                cy="50"
+                                                r="45"
+                                                stroke="white"
+                                                strokeWidth="8"
+                                                fill="none"
+                                                strokeDasharray="282.7"
+                                                strokeDashoffset="0"
+                                                strokeLinecap="round"
+                                            />
+                                        </Svg>
+                                        <View style={styles.progressValueContainer}>
+                                            <Text style={styles.progressTextPremium}>100%</Text>
+                                            <Text style={styles.progressLabelPremium}>Ready</Text>
+                                        </View>
                                     </View>
                                 </View>
                             </View>
                         </LinearGradient>
-                    </View>
+                    </Animated.View>
 
-                    {/* Quick Stats - Modern Strip */}
-                    <View style={styles.statsStripContainer}>
-                        <View style={styles.statsStrip}>
-                            <View style={styles.statItemModern}>
-                                <Text style={styles.statValModern}>12</Text>
-                                <Text style={styles.statLabModern}>Lives Saved</Text>
-                            </View>
-                            <View style={styles.statDivider} />
-                            <View style={styles.statItemModern}>
-                                <Text style={styles.statValModern}>5</Text>
-                                <Text style={styles.statLabModern}>Donations</Text>
-                            </View>
-                            <View style={styles.statDivider} />
-                            <View style={styles.statItemModern}>
-                                <Text style={styles.statValModern}>850</Text>
-                                <Text style={styles.statLabModern}>Points</Text>
-                            </View>
-                        </View>
-                    </View>
-
-                    {/* Primary Actions Grid */}
-                    <View style={styles.actionGrid}>
-                        <TouchableOpacity
-                            style={styles.actionCardBig}
-                            activeOpacity={0.8}
-                            onPress={() => router.push('/(tabs)/management')} // Links to the new feed
+                    <View style={styles.statsStripContainerPremium}>
+                        <Animated.View
+                            entering={FadeInRight.delay(400).duration(800)}
+                            style={styles.statsRowPremium}
                         >
-                            <View style={[styles.actionIconCircle, { backgroundColor: '#EAF6FF' }]}>
-                                <Search size={24} color="#007AFF" />
-                            </View>
-                            <Text style={styles.actionTitle}>Find Camps</Text>
-                            <Text style={styles.actionSub}>Locate nearby drives</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.actionCardBig} activeOpacity={0.8}>
-                            <View style={[styles.actionIconCircle, { backgroundColor: '#FFF4E5' }]}>
-                                <Award size={24} color="#FF9500" />
-                            </View>
-                            <Text style={styles.actionTitle}>My Pass</Text>
-                            <Text style={styles.actionSub}>View donor card</Text>
-                        </TouchableOpacity>
+                            {[
+                                { val: '12', lab: 'Lives Saved', icon: Heart, color: '#FF2D55' },
+                                { val: '5', lab: 'Donations', icon: Droplet, color: '#007AFF' },
+                                { val: '850', lab: 'Points', icon: Zap, color: '#FFCC00' },
+                            ].map((stat, i) => (
+                                <View key={i} style={styles.statCardPremium}>
+                                    <View style={[styles.statIconCircle, { backgroundColor: `${stat.color}15` }]}>
+                                        <stat.icon size={20} color={stat.color} fill={i === 0 ? stat.color : 'none'} />
+                                    </View>
+                                    <Text style={styles.statValPremium}>{stat.val}</Text>
+                                    <Text style={styles.statLabPremium}>{stat.lab}</Text>
+                                </View>
+                            ))}
+                        </Animated.View>
                     </View>
 
-                    {/* Recent & Health */}
+                    <View style={styles.actionGridPremium}>
+                        <Animated.View entering={FadeInDown.delay(600).duration(800)} style={{ flex: 1 }}>
+                            <TouchableOpacity
+                                style={styles.actionCardPremium}
+                                activeOpacity={0.8}
+                                onPress={() => router.push('/(tabs)/management')}
+                            >
+                                <LinearGradient
+                                    colors={['#F0F7FF', '#FFFFFF']}
+                                    style={[StyleSheet.absoluteFill, { borderRadius: 24 }]}
+                                />
+                                <View style={[styles.actionIconCirclePremium, { backgroundColor: '#007AFF15' }]}>
+                                    <Search size={24} color="#007AFF" />
+                                </View>
+                                <Text style={styles.actionTitlePremium}>Find Camps</Text>
+                                <Text style={styles.actionSubPremium}>Locate nearby drives</Text>
+                                <View style={styles.actionArrow}>
+                                    <ChevronRight size={16} color="#007AFF" />
+                                </View>
+                            </TouchableOpacity>
+                        </Animated.View>
+
+                        <Animated.View entering={FadeInDown.delay(750).duration(800)} style={{ flex: 1 }}>
+                            <TouchableOpacity style={styles.actionCardPremium} activeOpacity={0.8}>
+                                <LinearGradient
+                                    colors={['#FFF9F0', '#FFFFFF']}
+                                    style={[StyleSheet.absoluteFill, { borderRadius: 24 }]}
+                                />
+                                <View style={[styles.actionIconCirclePremium, { backgroundColor: '#FF950015' }]}>
+                                    <Award size={24} color="#FF9500" />
+                                </View>
+                                <Text style={styles.actionTitlePremium}>My Pass</Text>
+                                <Text style={styles.actionSubPremium}>View donor card</Text>
+                                <View style={styles.actionArrow}>
+                                    <ChevronRight size={16} color="#FF9500" />
+                                </View>
+                            </TouchableOpacity>
+                        </Animated.View>
+                    </View>
+
                     <View style={styles.sectionContainer}>
                         <View style={styles.sectionHeaderCompact}>
                             <Text style={styles.sectionTitleSmall}>Recent Impact</Text>
@@ -191,7 +327,7 @@ export default function DashboardScreen() {
                                 </View>
                                 <View style={styles.impactContent}>
                                     <Text style={styles.impactTitleModern}>Blood Donation</Text>
-                                    <Text style={styles.impactDate}>Oct 24, 2024 • City Hospital</Text>
+                                    <Text style={styles.impactDate}>Oct 24, 2026 • City Hospital</Text>
                                 </View>
                                 <View style={styles.impactBadge}>
                                     <Text style={styles.impactBadgeText}>+1 LIFE</Text>
@@ -227,8 +363,7 @@ export default function DashboardScreen() {
         if (role === 'volunteer') {
             return (
                 <View style={styles.volunteerContainer}>
-                    {renderHeader('Lead Volunteer', 'Active Responder', currentUserAvatar)}
-
+                    {renderHeader(config.title, config.sub, userAvatar)}
                     <View style={styles.missionContainer}>
                         <Text style={styles.sectionTitle}>Your Active Missions</Text>
                         <TouchableOpacity activeOpacity={0.9} onPress={() => router.push('/request-details')}>
@@ -316,9 +451,6 @@ export default function DashboardScreen() {
                                     </TouchableOpacity>
                                 </TouchableOpacity>
                             ))}
-                            {criticalRequests.length === 0 && (
-                                <Text style={styles.emptyFeedText}>No active alerts at the moment.</Text>
-                            )}
                         </View>
                     </View>
                 </View>
@@ -327,8 +459,7 @@ export default function DashboardScreen() {
 
         return (
             <View style={styles.adminContainer}>
-                {renderHeader('System Admin', 'Node Master', currentUserAvatar)}
-
+                {renderHeader(config.title, config.sub, userAvatar)}
                 <TouchableOpacity style={styles.searchBar} activeOpacity={0.9}>
                     <Search size={20} color="#8E8E93" />
                     <Text style={styles.searchText}>Search cases, donors or hubs...</Text>
@@ -366,6 +497,7 @@ export default function DashboardScreen() {
                             <Text style={styles.emergencySub} numberOfLines={2}>
                                 {criticalRequests[0].notes || `Critical case at ${criticalRequests[0].hospital}. Contacting nearby donors.`}
                             </Text>
+                            <FloatingSiren />
                         </TouchableOpacity>
                     ) : (
                         <View style={[styles.emergencyCard, { backgroundColor: '#F2F2F7', shadowColor: 'transparent' }]}>
@@ -395,31 +527,32 @@ export default function DashboardScreen() {
                     </View>
                 </View>
 
-                {/* Module Quick Access */}
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
                         <Text style={styles.sectionTitle}>Modules</Text>
                     </View>
                     <View style={styles.moduleGrid}>
                         {[
-                            { label: 'Camp Manager', icon: Building2, color: '#007AFF', bg: '#EAF6FF', route: '/camp-manager' },
-                            { label: 'Outreach', icon: MapPin, color: '#FF9500', bg: '#FFF4E5', route: '/outreach' },
-                            { label: 'HR Dashboard', icon: BarChart2, color: '#5856D6', bg: '#F0EEFF', route: '/hr-dashboard' },
-                            { label: 'Helpline', icon: Radio, color: '#FF3B30', bg: '#FFEBEA', route: '/(tabs)/helpline' },
-                        ].map((mod) => (
-                            <TouchableOpacity
-                                key={mod.label}
-                                style={styles.moduleCard}
-                                activeOpacity={0.8}
-                                onPress={() => router.push(mod.route as any)}
-                            >
-                                <View style={[styles.moduleIconBox, { backgroundColor: mod.bg }]}>
-                                    <mod.icon size={24} color={mod.color} />
-                                </View>
-                                <Text style={styles.moduleLabel}>{mod.label}</Text>
-                                <ChevronRight size={14} color="#C7C7CC" />
-                            </TouchableOpacity>
-                        ))}
+                            { label: 'Camp Manager', icon: Building2, color: '#007AFF', bg: '#EAF6FF', route: '/camp-manager', roles: ['admin', 'manager'] },
+                            { label: 'Outreach', icon: MapPin, color: '#FF9500', bg: '#FFF4E5', route: '/outreach', roles: ['admin', 'outreach'] },
+                            { label: 'HR Dashboard', icon: BarChart2, color: '#5856D6', bg: '#F0EEFF', route: '/hr-dashboard', roles: ['admin', 'hr'] },
+                            { label: 'Helpline', icon: Radio, color: '#FF3B30', bg: '#FFEBEA', route: '/(tabs)/helpline', roles: ['admin', 'manager', 'helpline'] },
+                        ]
+                            .filter(mod => role && (mod.roles as string[]).includes(role))
+                            .map((mod) => (
+                                <TouchableOpacity
+                                    key={mod.label}
+                                    style={styles.moduleCard}
+                                    activeOpacity={0.8}
+                                    onPress={() => router.push(mod.route as any)}
+                                >
+                                    <View style={[styles.moduleIconBox, { backgroundColor: mod.bg }]}>
+                                        <mod.icon size={24} color={mod.color} />
+                                    </View>
+                                    <Text style={styles.moduleLabel}>{mod.label}</Text>
+                                    <ChevronRight size={14} color="#C7C7CC" />
+                                </TouchableOpacity>
+                            ))}
                     </View>
                 </View>
 
@@ -499,7 +632,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.12,
         shadowRadius: 20,
-        elevation: 6,
     },
     heroContent: {
         flexDirection: 'row',
@@ -547,7 +679,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.08,
         shadowRadius: 10,
-        elevation: 4,
     },
     heroActionText: {
         color: '#FF5F6D',
@@ -573,7 +704,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.04,
         shadowRadius: 10,
-        elevation: 2,
     },
     statIconBox: {
         width: 36,
@@ -629,7 +759,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.05,
         shadowRadius: 10,
-        elevation: 3,
     },
     prepIconSmall: {
         width: 36,
@@ -659,7 +788,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 6 },
         shadowOpacity: 0.04,
         shadowRadius: 12,
-        elevation: 2,
     },
     medicalHeaderCompact: {
         flexDirection: 'row',
@@ -678,7 +806,7 @@ const styles = StyleSheet.create({
         color: '#1C1C1E',
     },
     readinessBadge: {
-        backgroundColor: '#EAFCF0',
+        backgroundColor: '#EAFFCF0',
         paddingHorizontal: 8,
         paddingVertical: 4,
         borderRadius: 6,
@@ -718,7 +846,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.04,
         shadowRadius: 10,
-        elevation: 2,
     },
     impactIconBox: {
         width: 44,
@@ -747,18 +874,17 @@ const styles = StyleSheet.create({
     },
     header: {
         flexDirection: 'row',
-        paddingHorizontal: 24,
+        paddingHorizontal: 20,
         alignItems: 'center',
         backgroundColor: '#FFFFFF',
         borderBottomLeftRadius: 28,
         borderBottomRightRadius: 28,
-        paddingBottom: 16,
-        marginBottom: 12,
+        paddingBottom: 12,
+        marginBottom: 10,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.02,
         shadowRadius: 10,
-        elevation: 2,
     },
     headerRight: {
         flexDirection: 'row',
@@ -786,22 +912,24 @@ const styles = StyleSheet.create({
     },
     dateText: {
         color: '#8E8E93',
-        fontSize: 13,
+        fontSize: 11,
         fontWeight: '700',
         textTransform: 'uppercase',
         letterSpacing: 1.2,
     },
     userName: {
-        fontSize: 26,
+        fontSize: 22,
         fontWeight: '900',
         color: '#1C1C1E',
-        letterSpacing: -1,
-        marginTop: 6,
+        letterSpacing: -0.5,
+        marginTop: 4,
     },
     avatarBorder: {
-        borderWidth: 3,
+        borderWidth: 2,
         borderColor: '#F2F2F7',
         backgroundColor: '#F2F2F7',
+        borderRadius: 24,
+        overflow: 'hidden',
     },
     searchBar: {
         backgroundColor: '#FFFFFF',
@@ -817,7 +945,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.04,
         shadowRadius: 12,
-        elevation: 2,
     },
     searchText: {
         flex: 1,
@@ -833,7 +960,7 @@ const styles = StyleSheet.create({
     emergencyCard: {
         borderRadius: 28,
         padding: 24,
-        elevation: 8,
+        overflow: 'hidden',
         shadowColor: '#FF3B30',
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.2,
@@ -901,7 +1028,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.04,
         shadowRadius: 12,
-        elevation: 2,
     },
     adminStatIconBox: {
         width: 48,
@@ -984,13 +1110,10 @@ const styles = StyleSheet.create({
         marginTop: 4,
         fontWeight: '600',
     },
-
-    // Donor Specific Styles
     heroContainer: {
         paddingHorizontal: 24,
         marginBottom: 24,
     },
-
     heroBadge: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -1047,7 +1170,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 6 },
         shadowOpacity: 0.04,
         shadowRadius: 15,
-        elevation: 3,
     },
     donorStatIcon: {
         width: 60,
@@ -1078,7 +1200,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.02,
         shadowRadius: 8,
-        elevation: 2,
     },
     historyItem: {
         flexDirection: 'row',
@@ -1120,7 +1241,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.02,
         shadowRadius: 10,
-        elevation: 2,
     },
     prepIcon: {
         width: 40,
@@ -1157,7 +1277,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.02,
         shadowRadius: 10,
-        elevation: 2,
     },
     medicalHeader: {
         flexDirection: 'row',
@@ -1194,8 +1313,6 @@ const styles = StyleSheet.create({
         color: '#34C759',
         fontWeight: '800',
     },
-
-    // Volunteer Specific Styles
     missionContainer: {
         paddingHorizontal: 24,
         paddingVertical: 8,
@@ -1204,7 +1321,6 @@ const styles = StyleSheet.create({
     missionCard: {
         borderRadius: 24,
         padding: 20,
-        elevation: 6,
         shadowColor: '#007AFF',
         shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.15,
@@ -1278,7 +1394,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.03,
         shadowRadius: 12,
-        elevation: 3,
     },
     roleStatVal: {
         fontSize: 24,
@@ -1308,7 +1423,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.04,
         shadowRadius: 12,
-        elevation: 3,
         marginBottom: 10,
     },
     alertLeft: {
@@ -1395,7 +1509,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.04,
         shadowRadius: 8,
-        elevation: 2,
     },
     moduleIconBox: {
         width: 48,
@@ -1410,170 +1523,53 @@ const styles = StyleSheet.create({
         fontWeight: '800',
         color: '#1C1C1E',
     },
-    // Modern Donor UI Styles
-    heroCard: {
-        borderRadius: 24,
-        padding: 24,
-        shadowColor: '#D32F2F',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.2,
-        shadowRadius: 16,
-        elevation: 8,
-    },
-    heroRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    heroInfo: {
-        flex: 1,
-        paddingRight: 16,
-    },
-    bloodTag: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#FFFFFF',
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 8,
-        alignSelf: 'flex-start',
-        marginBottom: 12,
-        gap: 6,
-    },
-    bloodTagText: {
-        fontSize: 11,
-        fontWeight: '900',
-        color: '#D32F2F',
-    },
-    heroTitleModern: {
-        fontSize: 22,
-        fontWeight: '900',
-        color: '#FFFFFF',
-        lineHeight: 28,
-        marginBottom: 4,
-    },
-    heroSubModern: {
-        fontSize: 13,
-        color: 'rgba(255,255,255,0.8)',
-        fontWeight: '500',
-        marginBottom: 20,
-    },
-    heroBtnModern: {
-        backgroundColor: '#FFFFFF',
-        paddingHorizontal: 20,
-        paddingVertical: 10,
-        borderRadius: 20,
-        alignSelf: 'flex-start',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 2,
-    },
-    heroBtnTextModern: {
-        fontSize: 14,
-        fontWeight: '800',
-        color: '#D32F2F',
-    },
-    heroProgress: {
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    progressCircle: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
-        borderWidth: 6,
-        borderColor: 'rgba(255,255,255,0.3)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    progressText: {
-        fontSize: 18,
-        fontWeight: '900',
-        color: '#FFFFFF',
-    },
-    progressLabel: {
-        fontSize: 10,
-        color: 'rgba(255,255,255,0.8)',
-        fontWeight: '600',
-    },
-    statsStripContainer: {
-        paddingHorizontal: 20,
-        marginBottom: 24,
-    },
-    statsStrip: {
-        flexDirection: 'row',
-        backgroundColor: '#FFFFFF',
-        borderRadius: 16,
-        paddingVertical: 16,
-        paddingHorizontal: 8,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.03,
-        shadowRadius: 10,
-        elevation: 2,
-        justifyContent: 'space-around',
-        alignItems: 'center',
-    },
-    statItemModern: {
-        alignItems: 'center',
-        flex: 1,
-    },
-    statValModern: {
-        fontSize: 20,
-        fontWeight: '900',
-        color: '#1C1C1E',
-    },
-    statLabModern: {
-        fontSize: 11,
-        color: '#8E8E93',
-        fontWeight: '600',
-        marginTop: 2,
-    },
-    statDivider: {
-        width: 1,
-        height: 24,
-        backgroundColor: '#F2F2F7',
-    },
-    actionGrid: {
-        flexDirection: 'row',
-        paddingHorizontal: 20,
-        gap: 16,
-        marginBottom: 32,
-    },
-    actionCardBig: {
-        flex: 1,
+    impactCardModern: {
+        marginHorizontal: 20,
         backgroundColor: '#FFFFFF',
         borderRadius: 20,
         padding: 16,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.03,
-        shadowRadius: 10,
-        elevation: 2,
+        shadowRadius: 12,
     },
-    actionIconCircle: {
+    impactRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    impactIconModern: {
         width: 48,
         height: 48,
         borderRadius: 16,
+        backgroundColor: '#FF2D55',
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 12,
+        marginRight: 16,
     },
-    actionTitle: {
+    impactContent: {
+        flex: 1,
+    },
+    impactTitleModern: {
         fontSize: 16,
         fontWeight: '800',
         color: '#1C1C1E',
-        marginBottom: 4,
     },
-    actionSub: {
-        fontSize: 12,
+    impactDate: {
+        fontSize: 13,
         color: '#8E8E93',
-        fontWeight: '500',
+        marginTop: 4,
+        fontWeight: '600',
     },
-    sectionContainer: {
-        marginBottom: 24,
+    impactBadge: {
+        backgroundColor: '#EAFCF0',
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 10,
+    },
+    impactBadgeText: {
+        color: '#34C759',
+        fontSize: 11,
+        fontWeight: '900',
     },
     tipsScroll: {
         paddingHorizontal: 20,
@@ -1598,57 +1594,216 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     tipText: {
-        fontSize: 13,
+        fontSize: 14,
         fontWeight: '700',
         color: '#1C1C1E',
     },
-    impactCardModern: {
-        marginHorizontal: 20,
-        backgroundColor: '#FFFFFF',
-        borderRadius: 20,
-        padding: 16,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.04,
-        shadowRadius: 10,
-        elevation: 2,
+    // Premium Redesign Styles
+    heroCardPremium: {
+        borderRadius: 24,
+        padding: 20,
+        paddingBottom: 24,
+        overflow: 'hidden',
+        shadowColor: '#C62828',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.2,
+        shadowRadius: 15,
+        marginBottom: 24,
     },
-    impactRow: {
+    floatingDroplet: {
+        position: 'absolute',
+        right: -10,
+        bottom: -15,
+    },
+    floatingSiren: {
+        position: 'absolute',
+        right: -30,
+        bottom: -30,
+        transform: [{ rotate: '-20deg' }],
+    },
+    bloodTagPremium: {
         flexDirection: 'row',
         alignItems: 'center',
+        backgroundColor: 'rgba(255,255,255,0.9)',
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 10,
+        alignSelf: 'flex-start',
+        marginBottom: 16,
+        gap: 6,
     },
-    impactIconModern: {
-        width: 48,
-        height: 48,
-        borderRadius: 16,
-        backgroundColor: '#FF3B30',
+    bloodTagTextPremium: {
+        fontSize: 12,
+        fontWeight: '900',
+        color: '#E53935',
+        letterSpacing: 0.5,
+    },
+    heroTitlePremium: {
+        fontSize: 24,
+        fontWeight: '900',
+        color: '#FFFFFF',
+        lineHeight: 30,
+        marginBottom: 6,
+        letterSpacing: -0.5,
+    },
+    heroSubPremium: {
+        fontSize: 13,
+        color: 'rgba(255,255,255,0.85)',
+        fontWeight: '600',
+        marginBottom: 20,
+        lineHeight: 18,
+    },
+    heroBtnPremium: {
+        backgroundColor: '#FFFFFF',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 14,
+        alignSelf: 'flex-start',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 6,
+    },
+    heroBtnTextPremium: {
+        fontSize: 16,
+        fontWeight: '800',
+        color: '#E53935',
+    },
+    heroProgressPremium: {
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 14,
     },
-    impactContent: {
+    progressCirclePremium: {
+        width: 85,
+        height: 85,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    progressValueContainer: {
+        position: 'absolute',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    progressTextPremium: {
+        fontSize: 18,
+        fontWeight: '900',
+        color: '#FFFFFF',
+    },
+    progressLabelPremium: {
+        fontSize: 11,
+        color: 'rgba(255,255,255,0.8)',
+        fontWeight: '700',
+        marginTop: -2,
+    },
+    statsStripContainerPremium: {
+        paddingHorizontal: 20,
+        marginTop: -20,
+        marginBottom: 28,
+        zIndex: 10,
+    },
+    statsRowPremium: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        gap: 12,
+    },
+    statCardPremium: {
         flex: 1,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 20,
+        padding: 12,
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.06,
+        shadowRadius: 15,
     },
-    impactTitleModern: {
-        fontSize: 16,
+    statIconCircle: {
+        width: 44,
+        height: 44,
+        borderRadius: 14,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 10,
+    },
+    statValPremium: {
+        fontSize: 20,
         fontWeight: '900',
         color: '#1C1C1E',
+        letterSpacing: -0.5,
     },
-    impactDate: {
-        fontSize: 13,
+    statLabPremium: {
+        fontSize: 11,
         color: '#8E8E93',
-        fontWeight: '500',
+        fontWeight: '700',
         marginTop: 2,
     },
-    impactBadge: {
-        backgroundColor: '#EAFCF0',
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-        borderRadius: 8,
+    actionGridPremium: {
+        flexDirection: 'row',
+        paddingHorizontal: 20,
+        gap: 12,
+        marginBottom: 24,
     },
-    impactBadgeText: {
-        fontSize: 11,
+    actionCardPremium: {
+        height: 120,
+        borderRadius: 22,
+        padding: 10,
+        justifyContent: 'flex-start',
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.03)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.03,
+        shadowRadius: 8,
+        overflow: 'hidden',
+    },
+    actionIconCirclePremium: {
+        width: 40,
+        height: 40,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    actionTitlePremium: {
+        fontSize: 17,
         fontWeight: '900',
-        color: '#34C759',
+        color: '#1C1C1E',
+        marginBottom: 4,
+        letterSpacing: -0.3,
+    },
+    actionSubPremium: {
+        fontSize: 12,
+        color: '#8E8E93',
+        fontWeight: '600',
+    },
+    actionArrow: {
+        position: 'absolute',
+        right: 14,
+        bottom: 14,
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: '#FFFFFF',
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+    },
+    heroRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    heroInfo: {
+        flex: 1,
+        paddingRight: 20,
+    },
+    sectionContainer: {
+        marginBottom: 32,
     },
 });

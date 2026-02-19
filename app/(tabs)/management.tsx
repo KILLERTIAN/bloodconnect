@@ -1,8 +1,8 @@
 // This tab redirects to the Camp Manager module for admins/managers
 // And shows the Public Events Feed for donors/volunteers
 import { useAuth } from '@/context/AuthContext';
-import CampManagerScreen from '../camp-manager';
 import EventsFeedScreen from '../events-feed';
+import CampManagerScreen from './camp-manager';
 
 export default function ManagementRoute() {
     const { role } = useAuth();

@@ -11,6 +11,7 @@ export async function initializeSchema(db: SQLiteDatabase) {
             password_hash TEXT NOT NULL,
             role TEXT NOT NULL CHECK(role IN ('admin','manager','hr','outreach','volunteer','helpline')),
             is_active INTEGER DEFAULT 1,
+            avatar_url TEXT,
             created_at TEXT DEFAULT (datetime('now')),
             updated_at TEXT DEFAULT (datetime('now'))
         );
@@ -222,19 +223,25 @@ export async function initializeSchema(db: SQLiteDatabase) {
 
 export async function seedDefaultUsers(db: SQLiteDatabase) {
     const users = [
-        ['Admin User', 'admin@bloodconnect.org', '9999900001', 'admin123', 'admin'],
-        ['Rahul Sharma', 'manager@bloodconnect.org', '9999900002', 'manager123', 'manager'],
-        ['Priya Nair', 'hr@bloodconnect.org', '9999900003', 'hr123', 'hr'],
-        ['Arjun Mehta', 'outreach@bloodconnect.org', '9999900004', 'outreach123', 'outreach'],
-        ['Sneha Patel', 'volunteer@bloodconnect.org', '9999900005', 'volunteer123', 'volunteer'],
-        ['Vikram Das', 'helpline@bloodconnect.org', '9999900006', 'helpline123', 'helpline']
+        ['Admin User', 'admin@bloodconnect.org', '9999900001', 'admin123', 'admin', 'https://img.freepik.com/premium-photo/office-portrait-business-administration-happy-man-loan-admin-finance-accountant-financial-accounting-corporate-bookkeeping-company-manager-male-consultant-working-bangladesh-bank_590464-167229.jpg?semt=ais_user_personalization&w=740&q=80'],
+        ['Rahul Sharma', 'manager@bloodconnect.org', '9999900002', 'manager123', 'manager', 'https://picsum.photos/id/91/300/300'],
+        ['Priya Nair', 'hr@bloodconnect.org', '9999900003', 'hr123', 'hr', 'https://picsum.photos/id/64/300/300'],
+        ['Arjun Mehta', 'outreach@bloodconnect.org', '9999900004', 'outreach123', 'outreach', 'https://picsum.photos/id/1012/300/300'],
+        ['Sneha Patel', 'volunteer@bloodconnect.org', '9999900005', 'volunteer123', 'volunteer', 'https://picsum.photos/id/1027/300/300'],
+        ['Vikram Das', 'helpline@bloodconnect.org', '9999900006', 'helpline123', 'helpline', 'https://picsum.photos/id/342/300/300']
     ];
 
-    console.log('Ensure default users exist...');
-    for (const user of users) {
+    console.log('Ensure default users exist and have updated avatars...');
+    for (const [name, email, phone, password_hash, role, avatar_url] of users) {
+        // Try inserting first
         await db.runAsync(
-            `INSERT OR IGNORE INTO users(name, email, phone, password_hash, role) VALUES(?, ?, ?, ?, ?)`,
-            user
+            `INSERT OR IGNORE INTO users(name, email, phone, password_hash, role, avatar_url) VALUES(?, ?, ?, ?, ?, ?)`,
+            [name, email, phone, password_hash, role, avatar_url]
+        );
+        // Force update avatar_url to match the latest seeded values
+        await db.runAsync(
+            `UPDATE users SET avatar_url = ? WHERE email = ?`,
+            [avatar_url, email]
         );
     }
 }
@@ -257,9 +264,9 @@ export async function seedInitialData(db: SQLiteDatabase) {
 
     // Seed Events
     const eventsToSeed = [
-        ['Annual Blood Drive', 'Infosys Ltd.', 'Sameer Kumar', '9888811111', 'Electronic City Phase 1', 'Bengaluru', 'lead_received', managerId, '2024-11-15', 100],
-        ['Community Donation Camp', 'Rotary Club South', 'Anita Desai', '9888822222', 'Indiranagar Club', 'Bengaluru', 'contacting_poc', managerId, '2024-10-20', 50],
-        ['Winter Blood Drive', 'TCS Adibatla', 'Rohit Varma', '9888833333', 'TCS Synergy Park', 'Hyderabad', 'closed', managerId, '2024-01-10', 120]
+        ['Annual Blood Drive', 'Infosys Ltd.', 'Sameer Kumar', '9888811111', 'Electronic City Phase 1', 'Bengaluru', 'lead_received', managerId, '2026-11-15', 100],
+        ['Community Donation Camp', 'Rotary Club South', 'Anita Desai', '9888822222', 'Indiranagar Club', 'Bengaluru', 'contacting_poc', managerId, '2026-10-20', 50],
+        ['Winter Blood Drive', 'TCS Adibatla', 'Rohit Varma', '9888833333', 'TCS Synergy Park', 'Hyderabad', 'closed', managerId, '2026-01-10', 120]
     ];
 
     console.log('Ensuring default Events exist...');
@@ -293,7 +300,23 @@ export async function seedInitialData(db: SQLiteDatabase) {
     // Seed Donors
     const donorsToSeed = [
         ['Amit Trivedi', '9666611111', 'O+', 'Bengaluru', 'male', 28],
-        ['Sunita Williams', '9666622222', 'B+', 'Mumbai', 'female', 34]
+        ['Sunita Williams', '9666622222', 'B+', 'Mumbai', 'female', 34],
+        ['Rajesh Iyer', '9666633333', 'A+', 'Bengaluru', 'male', 45],
+        ['Priya Sharma', '9666644444', 'AB+', 'Delhi', 'female', 29],
+        ['Mohammed Ali', '9666655555', 'O-', 'Hyderabad', 'male', 31],
+        ['Sneha Reddy', '9666666666', 'B-', 'Bengaluru', 'female', 25],
+        ['Karthik Raj', '9666677777', 'A-', 'Chennai', 'male', 38],
+        ['Ananya Gupta', '9666688888', 'AB-', 'Pune', 'female', 27],
+        ['Suresh Kumar', '9666699999', 'O+', 'Bengaluru', 'male', 52],
+        ['Lakshmi Nair', '9666600000', 'A+', 'Kochi', 'female', 41],
+        ['Vikram Seth', '9666611223', 'B+', 'Indira Nagar, Bengaluru', 'male', 33],
+        ['Aditi Rao', '9666622334', 'O+', 'Koramangala, Bengaluru', 'female', 26],
+        ['Rohan Das', '9666633445', 'A-', 'Whitefield, Bengaluru', 'male', 30],
+        ['Ishita Sen', '9666644556', 'AB+', 'Jayanagar, Bengaluru', 'female', 35],
+        ['Nitin Gadkari', '9666655667', 'O-', 'Delhi', 'male', 62],
+        ['Deepa Malik', '9666666778', 'B+', 'Mumbai', 'female', 48],
+        ['Arun Jaitley', '9666677889', 'A+', 'Ahmedabad', 'male', 55],
+        ['Sania Mirza', '9666688990', 'O+', 'Hyderabad', 'female', 32]
     ];
 
     console.log('Ensuring default Donors exist...');
@@ -322,5 +345,50 @@ export async function seedInitialData(db: SQLiteDatabase) {
                 hl
             );
         }
+    }
+}
+
+export async function seedExperience(db: SQLiteDatabase) {
+    const getUserId = async (email: string) => {
+        const res = await db.getAllAsync<{ id: number }>(`SELECT id FROM users WHERE email = ?`, [email]);
+        return res[0]?.id;
+    };
+
+    const outreachId = await getUserId('outreach@bloodconnect.org');
+    const volunteerId = await getUserId('volunteer@bloodconnect.org');
+    const managerId = await getUserId('manager@bloodconnect.org');
+
+    if (!outreachId || !volunteerId) return;
+
+    // 1. Ensure some closed events for "Experience"
+    const closedEvents = [
+        ['Summer Camp 2025', 'IIT Delhi', 'Prof. Kumar', '9888844444', 'Hauz Khas', 'Delhi', 'closed', managerId, '2025-06-15', 80, 72],
+        ['Corporate Drive', 'Zomato HQ', 'Deepinder', '9888855555', 'Gurugram', 'Gurugram', 'closed', managerId, '2025-08-20', 100, 95]
+    ];
+
+    for (const evt of closedEvents) {
+        const exists = await db.getAllAsync<{ id: number }>(`SELECT id FROM events WHERE title = ?`, [evt[0] as string]);
+        if (exists.length === 0) {
+            await db.runAsync(
+                `INSERT INTO events(title, organization_name, poc_name, poc_phone, location, city, status, created_by, event_date, expected_donors, actual_donations) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                evt
+            );
+        }
+    }
+
+    // 2. Link Arjun and Sneha to these events as 'attended'
+    const eventIds = await db.getAllAsync<{ id: number }>(`SELECT id FROM events WHERE status = 'closed'`);
+
+    for (const eid of eventIds) {
+        // Arjun participated
+        await db.runAsync(
+            `INSERT OR IGNORE INTO event_volunteers(event_id, volunteer_id, status, role_in_event) VALUES (?, ?, 'attended', 'Coordinator')`,
+            [eid.id, outreachId]
+        );
+        // Sneha participated
+        await db.runAsync(
+            `INSERT OR IGNORE INTO event_volunteers(event_id, volunteer_id, status, role_in_event) VALUES (?, ?, 'attended', 'Volunteer')`,
+            [eid.id, volunteerId]
+        );
     }
 }

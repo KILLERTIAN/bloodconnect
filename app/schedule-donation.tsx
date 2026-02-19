@@ -6,8 +6,7 @@ import {
     Clock,
     Info,
     MapPin,
-    ShieldCheck,
-    Timer
+    ShieldCheck
 } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
@@ -24,12 +23,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 const { width } = Dimensions.get('window');
 
 const DATES = [
-    { day: 'Mon', date: '20', month: 'Oct' },
-    { day: 'Tue', date: '21', month: 'Oct' },
-    { day: 'Wed', date: '22', month: 'Oct' },
-    { day: 'Thu', date: '23', month: 'Oct' },
-    { day: 'Fri', date: '24', month: 'Oct' },
-    { day: 'Sat', date: '25', month: 'Oct' },
+    { day: 'Tue', date: '20', month: 'Oct' },
+    { day: 'Wed', date: '21', month: 'Oct' },
+    { day: 'Thu', date: '22', month: 'Oct' },
+    { day: 'Fri', date: '23', month: 'Oct' },
+    { day: 'Sat', date: '24', month: 'Oct' },
+    { day: 'Sun', date: '25', month: 'Oct' },
 ];
 
 const SLOTS = ['Morning', 'Afternoon', 'Evening'];
@@ -71,19 +70,23 @@ export default function ScheduleDonationScreen() {
 
                 {/* Info Card */}
                 <View style={styles.infoSection}>
-                    <View style={styles.infoCard}>
-                        <Info size={20} color="#007AFF" />
+                    <LinearGradient
+                        colors={['#F0F7FF', '#FFFFFF']}
+                        style={styles.infoCard}
+                    >
+                        <View style={styles.infoIconBox}>
+                            <Info size={18} color="#007AFF" />
+                        </View>
                         <Text style={styles.infoText}>
-                            Choose a convenient time and place for your contribution.
-                            Professional medical care is guaranteed.
+                            Professional medical care is guaranteed at all our partner centers.
                         </Text>
-                    </View>
+                    </LinearGradient>
                 </View>
 
                 {/* Date Selector */}
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
-                        <CalendarIcon size={18} color="#8E8E93" />
+                        <CalendarIcon size={14} color="#8E8E93" />
                         <Text style={styles.sectionLabel}>SELECT DATE</Text>
                     </View>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateList}>
@@ -92,6 +95,7 @@ export default function ScheduleDonationScreen() {
                                 key={item.date}
                                 style={[styles.dateItem, selectedDate === item.date && styles.selectedDateItem]}
                                 onPress={() => setSelectedDate(item.date)}
+                                activeOpacity={0.8}
                             >
                                 <Text style={[styles.dateDay, selectedDate === item.date && styles.selectedDateText]}>{item.day}</Text>
                                 <Text style={[styles.dateNumber, selectedDate === item.date && styles.selectedDateText]}>{item.date}</Text>
@@ -103,7 +107,7 @@ export default function ScheduleDonationScreen() {
                 {/* Slot Selector */}
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
-                        <Clock size={18} color="#8E8E93" />
+                        <Clock size={14} color="#8E8E93" />
                         <Text style={styles.sectionLabel}>TIME SLOT</Text>
                     </View>
                     <View style={styles.slotRow}>
@@ -115,6 +119,7 @@ export default function ScheduleDonationScreen() {
                                     setSelectedSlot(slot);
                                     setSelectedTime(TIME_SLOTS[slot as keyof typeof TIME_SLOTS][0]);
                                 }}
+                                activeOpacity={0.8}
                             >
                                 <Text style={[styles.slotText, selectedSlot === slot && styles.selectedSlotText]}>{slot}</Text>
                             </TouchableOpacity>
@@ -130,8 +135,8 @@ export default function ScheduleDonationScreen() {
                                 key={time}
                                 style={[styles.timeItem, selectedTime === time && styles.selectedTimeItem]}
                                 onPress={() => setSelectedTime(time)}
+                                activeOpacity={0.8}
                             >
-                                <Timer size={14} color={selectedTime === time ? '#FFFFFF' : '#8E8E93'} />
                                 <Text style={[styles.timeText, selectedTime === time && styles.selectedTimeText]}>{time}</Text>
                             </TouchableOpacity>
                         ))}
@@ -141,7 +146,7 @@ export default function ScheduleDonationScreen() {
                 {/* Location Selection */}
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
-                        <MapPin size={18} color="#8E8E93" />
+                        <MapPin size={14} color="#8E8E93" />
                         <Text style={styles.sectionLabel}>DONATION CENTER</Text>
                     </View>
                     <View style={styles.hospitalList}>
@@ -150,16 +155,19 @@ export default function ScheduleDonationScreen() {
                                 key={hosp.id}
                                 style={[styles.hospitalCard, selectedHospital === hosp.id && styles.selectedHospitalCard]}
                                 onPress={() => setSelectedHospital(hosp.id)}
+                                activeOpacity={0.9}
                             >
-                                <View style={[styles.hospIconBox, selectedHospital === hosp.id && { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-                                    <MapPin size={24} color={selectedHospital === hosp.id ? '#FFFFFF' : '#FF3B30'} />
+                                <View style={[styles.hospIconBox, selectedHospital === hosp.id && { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
+                                    <MapPin size={22} color={selectedHospital === hosp.id ? '#FFFFFF' : '#FF3B30'} />
                                 </View>
                                 <View style={styles.hospInfo}>
                                     <Text style={[styles.hospName, selectedHospital === hosp.id && { color: '#FFFFFF' }]}>{hosp.name}</Text>
-                                    <Text style={[styles.hospLoc, selectedHospital === hosp.id && { color: 'rgba(255,255,255,0.8)' }]}>{hosp.location}</Text>
+                                    <Text style={[styles.hospLoc, selectedHospital === hosp.id && { color: 'rgba(255,255,255,0.7)' }]}>{hosp.location}</Text>
                                 </View>
                                 {selectedHospital === hosp.id && (
-                                    <ShieldCheck size={20} color="#FFFFFF" strokeWidth={3} />
+                                    <View style={styles.checkCircle}>
+                                        <ShieldCheck size={16} color="#FF3B30" strokeWidth={3} />
+                                    </View>
                                 )}
                             </TouchableOpacity>
                         ))}
@@ -189,112 +197,111 @@ export default function ScheduleDonationScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F2F2F7', // iOS Light Gray Background
+        backgroundColor: '#FCFCFD',
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 20,
+        paddingHorizontal: 16,
         backgroundColor: '#FFFFFF',
-        paddingBottom: 16,
+        paddingBottom: 12,
         borderBottomWidth: 1,
-        borderBottomColor: '#E5E5EA',
+        borderBottomColor: 'rgba(0,0,0,0.03)',
     },
     backBtn: {
-        width: 44,
-        height: 44,
-        borderRadius: 14,
+        width: 40,
+        height: 40,
+        borderRadius: 12,
         backgroundColor: '#F2F2F7',
         alignItems: 'center',
         justifyContent: 'center',
     },
     headerTitle: {
-        fontSize: 19,
+        fontSize: 18,
         fontWeight: '900',
         color: '#1C1C1E',
-        letterSpacing: -0.5,
+        letterSpacing: -0.3,
     },
     scrollContent: {
-        paddingTop: 20,
-        paddingBottom: 140, // Increased to prevent content being hidden under the sticky button
+        paddingTop: 16,
+        paddingBottom: 160,
     },
     infoSection: {
         paddingHorizontal: 20,
-        marginBottom: 24,
+        marginBottom: 20,
     },
     infoCard: {
         flexDirection: 'row',
-        backgroundColor: '#FFFFFF',
-        padding: 18,
-        borderRadius: 20,
+        padding: 14,
+        borderRadius: 18,
         gap: 12,
         alignItems: 'center',
-        borderLeftWidth: 4,
-        borderLeftColor: '#007AFF',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 10,
-        elevation: 2,
+        borderWidth: 1,
+        borderColor: 'rgba(0,122,255,0.05)',
+    },
+    infoIconBox: {
+        width: 32,
+        height: 32,
+        borderRadius: 10,
+        backgroundColor: 'rgba(0,122,255,0.08)',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     infoText: {
         flex: 1,
-        fontSize: 14,
+        fontSize: 13,
         fontWeight: '600',
         color: '#3A3A3C',
-        lineHeight: 20,
+        lineHeight: 18,
     },
     section: {
-        marginBottom: 28,
+        marginBottom: 24,
     },
     sectionHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
-        paddingHorizontal: 24,
-        marginBottom: 14,
+        gap: 6,
+        paddingHorizontal: 20,
+        marginBottom: 12,
     },
     sectionLabel: {
-        fontSize: 12,
+        fontSize: 11,
         fontWeight: '900',
         color: '#8E8E93',
-        letterSpacing: 1.2,
+        letterSpacing: 1,
     },
     dateList: {
         paddingHorizontal: 20,
-        gap: 14,
+        gap: 12,
     },
     dateItem: {
-        width: 68,
-        height: 88,
+        width: 60,
+        height: 70,
         backgroundColor: '#FFFFFF',
-        borderRadius: 24,
+        borderRadius: 18,
         alignItems: 'center',
         justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: '#F2F2F7',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.04,
-        shadowRadius: 12,
-        elevation: 3,
-        borderWidth: 1,
-        borderColor: '#E5E5EA',
+        shadowOpacity: 0.02,
+        shadowRadius: 8,
     },
     selectedDateItem: {
-        backgroundColor: '#000000',
-        borderColor: '#000000',
-        shadowColor: '#000',
-        shadowOpacity: 0.2,
+        backgroundColor: '#1C1C1E',
+        borderColor: '#1C1C1E',
     },
     dateDay: {
-        fontSize: 12,
-        fontWeight: '700',
+        fontSize: 10,
+        fontWeight: '800',
         color: '#8E8E93',
-        marginBottom: 6,
+        marginBottom: 2,
         textTransform: 'uppercase',
     },
     dateNumber: {
-        fontSize: 22,
+        fontSize: 18,
         fontWeight: '900',
         color: '#1C1C1E',
     },
@@ -304,28 +311,24 @@ const styles = StyleSheet.create({
     slotRow: {
         flexDirection: 'row',
         paddingHorizontal: 20,
-        gap: 12,
+        gap: 8,
     },
     slotBtn: {
         flex: 1,
-        height: 52,
+        height: 44,
         backgroundColor: '#FFFFFF',
-        borderRadius: 18,
+        borderRadius: 14,
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
-        borderColor: '#E5E5EA',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.02,
-        shadowRadius: 5,
+        borderColor: '#F2F2F7',
     },
     selectedSlotBtn: {
         backgroundColor: '#EAF6FF',
-        borderColor: '#007AFF',
+        borderColor: '#007AFF15',
     },
     slotText: {
-        fontSize: 15,
+        fontSize: 14,
         fontWeight: '800',
         color: '#8E8E93',
     },
@@ -336,25 +339,25 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         flexDirection: 'row',
         flexWrap: 'wrap',
-        gap: 10,
+        gap: 8,
     },
     timeItem: {
-        paddingHorizontal: 18,
-        paddingVertical: 14,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
         backgroundColor: '#FFFFFF',
-        borderRadius: 16,
-        flexDirection: 'row',
+        borderRadius: 12,
         alignItems: 'center',
-        gap: 10,
+        justifyContent: 'center',
         borderWidth: 1,
-        borderColor: '#E5E5EA',
+        borderColor: '#F2F2F7',
+        minWidth: (width - 60) / 3,
     },
     selectedTimeItem: {
         backgroundColor: '#FF3B30',
         borderColor: '#FF3B30',
     },
     timeText: {
-        fontSize: 15,
+        fontSize: 14,
         fontWeight: '900',
         color: '#1C1C1E',
     },
@@ -363,27 +366,31 @@ const styles = StyleSheet.create({
     },
     hospitalList: {
         paddingHorizontal: 20,
-        gap: 12,
+        gap: 10,
     },
     hospitalCard: {
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: '#FFFFFF',
-        padding: 18,
-        borderRadius: 28,
-        gap: 16,
+        padding: 14,
+        borderRadius: 20,
+        gap: 12,
         borderWidth: 1,
-        borderColor: '#E5E5EA',
+        borderColor: '#F2F2F7',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.02,
+        shadowRadius: 8,
     },
     selectedHospitalCard: {
         backgroundColor: '#FF3B30',
         borderColor: '#FF3B30',
     },
     hospIconBox: {
-        width: 56,
-        height: 56,
+        width: 48,
+        height: 48,
         backgroundColor: '#F2F2F7',
-        borderRadius: 18,
+        borderRadius: 14,
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -391,15 +398,23 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     hospName: {
-        fontSize: 17,
+        fontSize: 15,
         fontWeight: '900',
         color: '#1C1C1E',
     },
     hospLoc: {
-        fontSize: 14,
+        fontSize: 12,
         fontWeight: '600',
         color: '#8E8E93',
-        marginTop: 3,
+        marginTop: 2,
+    },
+    checkCircle: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: '#FFFFFF',
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     bottomBar: {
         position: 'absolute',
@@ -407,27 +422,24 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         backgroundColor: '#FFFFFF',
-        paddingHorizontal: 24,
-        paddingTop: 16,
+        paddingHorizontal: 20,
+        paddingTop: 12,
         borderTopWidth: 1,
-        borderColor: '#E5E5EA',
-        // Critical fix for button not being cut: correctly handling insets.bottom
+        borderColor: 'rgba(0,0,0,0.03)',
     },
     confirmBtn: {
-        borderRadius: 24,
+        borderRadius: 20,
         overflow: 'hidden',
-        marginBottom: 8, // Additional buffer for visual breathing room
+        marginBottom: 8,
     },
     confirmGradient: {
-        height: 68,
-        flexDirection: 'row',
+        height: 56,
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 12,
     },
     confirmText: {
         color: '#FFFFFF',
-        fontSize: 19,
+        fontSize: 16,
         fontWeight: '900',
         letterSpacing: 0.2,
     },

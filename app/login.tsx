@@ -1,4 +1,5 @@
 import { useAuth } from '@/context/AuthContext';
+import { useDialog } from '@/context/DialogContext';
 import { loginUser } from '@/lib/auth.service';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -20,7 +21,6 @@ import {
 import React, { useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
@@ -51,17 +51,18 @@ export default function LoginScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { login } = useAuth();
+    const { showDialog } = useDialog();
 
     const handleLogin = async () => {
         if (!email.trim() || !password.trim()) {
-            Alert.alert('Missing Fields', 'Please enter your email and password.');
+            showDialog('Missing Fields', 'Please enter your email and password.', 'warning');
             return;
         }
         setLoading(true);
         try {
             const user = await loginUser(email.trim(), password.trim());
             if (!user) {
-                Alert.alert('Login Failed', 'Invalid email or password. Please try again.');
+                showDialog('Login Failed', 'Invalid email or password. Please try again.', 'error');
                 return;
             }
             login(user.role as any, {
@@ -70,10 +71,11 @@ export default function LoginScreen() {
                 email: user.email,
                 phone: user.phone || '',
                 role: user.role as any,
+                avatar_url: user.avatar_url,
             });
             router.replace('/(tabs)/home');
         } catch (e: any) {
-            Alert.alert('Connection Error', 'Unable to connect. Please check your internet connection.');
+            showDialog('Connection Error', 'Unable to connect. Please check your internet connection.', 'error');
             console.error(e);
         } finally {
             setLoading(false);
