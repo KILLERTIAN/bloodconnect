@@ -1,7 +1,10 @@
-import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { AlertCircle, AlertTriangle, CheckCircle2, Info, X } from 'lucide-react-native';
 import React, { createContext, ReactNode, useCallback, useContext, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { Button, Dialog, Portal, Text, useTheme } from 'react-native-paper';
+import { Dimensions, Modal as RNModal, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Text, useTheme } from 'react-native-paper';
+
+const { width } = Dimensions.get('window');
 
 type DialogType = 'info' | 'success' | 'error' | 'warning';
 
@@ -59,7 +62,7 @@ export const DialogProvider: React.FC<DialogProviderProps> = ({ children }) => {
             title,
             message,
             type,
-            actions: actions.length > 0 ? actions : [{ label: 'OK', onPress: () => hideDialog(), style: 'default' }],
+            actions: actions.length > 0 ? actions : [{ label: 'OK', onPress: () => { }, style: 'default' }],
         });
     }, []);
 
@@ -67,109 +70,187 @@ export const DialogProvider: React.FC<DialogProviderProps> = ({ children }) => {
         setDialogState((prev) => ({ ...prev, visible: false }));
     }, []);
 
-    const getIcon = (type: DialogType) => {
+    const getIconInfo = (type: DialogType) => {
         switch (type) {
-            case 'success': return { name: 'checkmark-circle', color: '#4CAF50' }; // Green
-            case 'error': return { name: 'alert-circle', color: theme.colors.error }; // Red
-            case 'warning': return { name: 'warning', color: '#FFC107' }; // Amber
-            default: return { name: 'information-circle', color: theme.colors.primary }; // Primary
+            case 'success': return { Icon: CheckCircle2, color: '#34C759', colors: ['#34C759', '#248A3D'] };
+            case 'error': return { Icon: AlertCircle, color: '#FF3B30', colors: ['#FF3B30', '#C42D25'] };
+            case 'warning': return { Icon: AlertTriangle, color: '#FFCC00', colors: ['#FFCC00', '#D4AA00'] };
+            default: return { Icon: Info, color: '#007AFF', colors: ['#007AFF', '#005BBF'] };
         }
     };
 
-    const { name, color } = getIcon(dialogState.type || 'info');
+    const iconInfo = getIconInfo(dialogState.type || 'info');
+    const { Icon, colors } = iconInfo;
 
     return (
         <DialogContext.Provider value={{ showDialog, hideDialog }}>
             {children}
-            <Portal>
-                <Dialog
-                    visible={dialogState.visible}
-                    onDismiss={hideDialog}
-                    style={[styles.dialog, { backgroundColor: theme.colors.surface }]}
-                >
-                    <View style={styles.headerContainer}>
-                        <Ionicons name={name as any} size={40} color={color} style={styles.icon} />
-                        <Dialog.Title style={[styles.title, { color: theme.colors.onSurface }]}>
-                            {dialogState.title}
-                        </Dialog.Title>
+            <RNModal
+                visible={dialogState.visible}
+                transparent
+                animationType="fade"
+                onRequestClose={hideDialog}
+            >
+                <View style={styles.overlay}>
+                    <TouchableOpacity
+                        style={styles.backdrop}
+                        activeOpacity={1}
+                        onPress={hideDialog}
+                    />
+                    <View style={styles.dialogContainer}>
+                        <LinearGradient
+                            colors={colors as [string, string]}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.iconContainer}
+                        >
+                            <Icon size={32} color="#FFFFFF" strokeWidth={2.5} />
+                        </LinearGradient>
+
+                        <TouchableOpacity style={styles.closeBtn} onPress={hideDialog}>
+                            <X size={20} color="#C7C7CC" />
+                        </TouchableOpacity>
+
+                        <View style={styles.content}>
+                            <Text style={styles.title}>{dialogState.title}</Text>
+                            <Text style={styles.message}>{dialogState.message}</Text>
+                        </View>
+
+                        <View style={styles.actionsRow}>
+                            {dialogState.actions?.map((action, index) => {
+                                const isDefault = action.style === 'default' || !action.style;
+                                const isDestructive = action.style === 'destructive';
+
+                                return (
+                                    <TouchableOpacity
+                                        key={index}
+                                        onPress={() => {
+                                            action.onPress();
+                                            hideDialog();
+                                        }}
+                                        style={[
+                                            styles.button,
+                                            isDefault && styles.buttonPrimary,
+                                            isDestructive && styles.buttonDestructive,
+                                            dialogState.actions!.length > 1 && { flex: 1 }
+                                        ]}
+                                        activeOpacity={0.8}
+                                    >
+                                        <Text style={[
+                                            styles.buttonText,
+                                            isDefault && styles.buttonTextPrimary,
+                                            isDestructive && styles.buttonTextDestructive
+                                        ]}>
+                                            {action.label}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
                     </View>
-
-                    <Dialog.Content>
-                        <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant, textAlign: 'center' }}>
-                            {dialogState.message}
-                        </Text>
-                    </Dialog.Content>
-
-                    <Dialog.Actions style={styles.actions}>
-                        {dialogState.actions?.map((action, index) => (
-                            <Button
-                                key={index}
-                                onPress={() => {
-                                    action.onPress();
-                                    if (dialogState.actions?.length === 1 && action.style !== 'cancel') {
-                                        // Auto close if it's a simple OK button, unless it's a specific action flow
-                                        // Actually, user action.onPress might not close it, so we rely on the caller to call hideDialog if needed?
-                                        // Standard Alert behavior is to close on press.
-                                        hideDialog();
-                                    } else {
-                                        // For custom actions, we generally expect the specific handler to close it or not.
-                                        // But to mimic Alert, we should probably close it.
-                                        // Let's assume the user provided actions should close it, so we wrap.
-                                        // Wait, if I wrap it here, I might close it prematurely if they have async validation.
-                                        // But standardized Alerts usually close on press. 
-                                        // Let's keep it simple: We execute onPress, then hideDialog.
-                                    }
-                                    hideDialog();
-                                }}
-                                mode={action.style === 'default' || !action.style ? 'contained' : 'text'}
-                                textColor={action.style === 'destructive' ? theme.colors.error : (action.style === 'cancel' ? theme.colors.onSurface : theme.colors.surface)}
-                                buttonColor={action.style === 'default' || !action.style ? theme.colors.primary : undefined}
-                                style={styles.button}
-                                labelStyle={styles.buttonLabel}
-                            >
-                                {action.label}
-                            </Button>
-                        ))}
-                    </Dialog.Actions>
-                </Dialog>
-            </Portal>
+                </View>
+            </RNModal>
         </DialogContext.Provider>
     );
 };
 
 const styles = StyleSheet.create({
-    dialog: {
-        borderRadius: 16,
-        paddingBottom: 8,
-    },
-    headerContainer: {
+    overlay: {
+        flex: 1,
+        justifyContent: 'center',
         alignItems: 'center',
-        paddingTop: 16,
     },
-    icon: {
-        marginBottom: 8,
+    backdrop: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    },
+    dialogContainer: {
+        width: width * 0.85,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 32,
+        padding: 24,
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.15,
+        shadowRadius: 24,
+        elevation: 10,
+    },
+    iconContainer: {
+        width: 72,
+        height: 72,
+        borderRadius: 24,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginTop: -60,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.2,
+        shadowRadius: 12,
+        elevation: 8,
+    },
+    closeBtn: {
+        position: 'absolute',
+        top: 16,
+        right: 16,
+        padding: 8,
+    },
+    content: {
+        alignItems: 'center',
+        marginTop: 16,
+        marginBottom: 24,
     },
     title: {
+        fontSize: 22,
+        fontWeight: '900',
+        color: '#1C1C1E',
         textAlign: 'center',
-        fontWeight: 'bold',
-        fontSize: 20,
-        marginTop: 0,
-        marginBottom: 4,
+        marginBottom: 8,
+        letterSpacing: -0.5,
     },
-    actions: {
+    message: {
+        fontSize: 15,
+        fontWeight: '500',
+        color: '#636366',
+        textAlign: 'center',
+        lineHeight: 22,
+        paddingHorizontal: 8,
+    },
+    actionsRow: {
+        flexDirection: 'row',
+        gap: 12,
+        width: '100%',
         justifyContent: 'center',
-        flexWrap: 'wrap',
-        paddingHorizontal: 16,
-        paddingBottom: 16,
     },
     button: {
-        marginHorizontal: 4,
-        marginVertical: 4,
-        minWidth: 80,
-        borderRadius: 8,
+        paddingHorizontal: 24,
+        height: 52,
+        borderRadius: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#F2F2F7',
+        minWidth: 100,
     },
-    buttonLabel: {
-        fontSize: 14,
-        fontWeight: '600',
-    }
+    buttonPrimary: {
+        backgroundColor: '#FF3B30',
+        shadowColor: '#FF3B30',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        elevation: 4,
+    },
+    buttonDestructive: {
+        backgroundColor: '#FFEBEA',
+    },
+    buttonText: {
+        fontSize: 16,
+        fontWeight: '800',
+        color: '#8E8E93',
+    },
+    buttonTextPrimary: {
+        color: '#FFFFFF',
+    },
+    buttonTextDestructive: {
+        color: '#FF3B30',
+    },
 });

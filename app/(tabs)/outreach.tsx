@@ -1,4 +1,6 @@
 import { useAuth } from '@/context/AuthContext';
+import { useDialog } from '@/context/DialogContext';
+import { sync } from '@/lib/database';
 import { createLead, getAllLeads, OutreachLead, updateLeadStatus } from '@/lib/outreach.service';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -10,9 +12,13 @@ import {
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-    ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Modal,
+    ActivityIndicator,
+    DeviceEventEmitter,
+    FlatList,
+    KeyboardAvoidingView,
+    Modal,
     Platform, RefreshControl, ScrollView, StyleSheet, Text, TextInput,
-    TouchableOpacity, View,
+    TouchableOpacity, View
 } from 'react-native';
 import { Chip } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -29,6 +35,7 @@ const LEAD_TYPES = ['awareness_session', 'camp'];
 
 export default function OutreachScreen() {
     const { user, role } = useAuth();
+    const { showDialog } = useDialog();
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const [leads, setLeads] = useState<OutreachLead[]>([]);
@@ -59,35 +66,44 @@ export default function OutreachScreen() {
         finally { setLoading(false); setRefreshing(false); }
     }, [filterStatus, filterType, filterCategory]);
 
-    useEffect(() => { loadLeads(); }, [loadLeads]);
+    useEffect(() => {
+        loadLeads();
+        const sub = DeviceEventEmitter.addListener('db_synced', () => {
+            console.log('🔄 Auto-refreshing leads due to background sync');
+            loadLeads();
+        });
+        return () => sub.remove();
+    }, [loadLeads]);
 
     const handleCreate = async () => {
         if (!form.organization_name || !form.poc_name || !form.poc_phone) {
-            Alert.alert('Missing Fields', 'Organization name, POC name and phone are required.');
+            showDialog('Missing Fields', 'Organization name, POC name and phone are required.', 'warning');
             return;
         }
         try {
             await createLead({ ...form as any, created_by: user!.id });
             setShowAddModal(false);
             setForm({ organization_name: '', poc_name: '', poc_phone: '', poc_email: '', purpose: '', occasion: '', type: 'camp', org_category: 'corporate', city: '', location: '', notes: '' });
-            loadLeads();
-            Alert.alert('Lead Added', 'New outreach lead created successfully.');
+            try { await sync(); } catch (e) { }
+            DeviceEventEmitter.emit('db_synced');
+            showDialog('Lead Added', 'New outreach lead created successfully.', 'success');
         } catch (e: any) {
-            Alert.alert('Error', e.message || 'Failed to create lead.');
+            showDialog('Error', e.message || 'Failed to create lead.', 'error');
         }
     };
 
     const handleStatusChange = (lead: OutreachLead) => {
         const statuses = Object.keys(STATUS_CONFIG);
-        Alert.alert('Update Status', 'Select new status:', [
+        showDialog('Update Status', 'Select new status:', 'info', [
             ...statuses.map(s => ({
-                text: STATUS_CONFIG[s].label,
+                label: STATUS_CONFIG[s].label,
                 onPress: async () => {
                     await updateLeadStatus(lead.id, s);
-                    loadLeads();
+                    try { await sync(); } catch (e) { }
+                    DeviceEventEmitter.emit('db_synced');
                 }
             })),
-            { text: 'Cancel', style: 'cancel' }
+            { label: 'Cancel', style: 'cancel', onPress: () => { } }
         ]);
     };
 
@@ -393,7 +409,7 @@ const styles = StyleSheet.create({
     },
     summaryChip: {
         borderRadius: 14,
-        height: 38,
+        // height: 38,
     },
     summaryChipText: { fontSize: 13, fontWeight: '800' },
     searchContainer: { paddingHorizontal: 16, paddingVertical: 12 },

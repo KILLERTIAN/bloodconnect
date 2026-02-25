@@ -1,33 +1,17 @@
 import { getDonorAvatar } from '@/constants/AvatarMapping';
 import { useAuth } from '@/context/AuthContext';
+import { useDialog } from '@/context/DialogContext';
+import { updateUser as updateDBUser } from '@/lib/auth.service';
+import { getAvatarUrl, uploadImage } from '@/lib/cloudinary.service';
 import { sync } from '@/lib/database';
 import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { Activity, Award, Bell, Camera, ChevronRight, Clipboard, Clock, CreditCard, Droplet, Heart, History, Languages, LogOut, MessageCircle, Moon, Shield, ShieldCheck, Star, Target, User } from 'lucide-react-native';
+import React, { useState } from 'react';
 import {
-    Activity,
-    Award,
-    Bell,
-    ChevronRight,
-    Clipboard,
-    Clock,
-    CreditCard,
-    Droplet,
-    Heart,
-    History,
-    Languages,
-    LogOut,
-    MessageCircle,
-    Moon,
-    Shield,
-    ShieldCheck,
-    Star,
-    Target,
-    User
-} from 'lucide-react-native';
-import React from 'react';
-import {
-    Alert,
+    ActivityIndicator,
     Dimensions,
     ScrollView,
     StatusBar,
@@ -83,9 +67,11 @@ const ROLE_THEMES = {
 };
 
 export default function ProfileScreen() {
-    const { logout, role, user } = useAuth();
+    const { logout, role, user, updateAuthUser } = useAuth();
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const { showDialog } = useDialog();
+    const [uploading, setUploading] = useState(false);
 
     const userName = user?.name || 'User';
     const userRole = (role && ROLE_THEMES[role as keyof typeof ROLE_THEMES]) ? role : 'donor';
@@ -112,7 +98,36 @@ export default function ProfileScreen() {
     };
 
     // Globally synchronized avatar for current user
-    const currentUserAvatar = user?.avatar_url || getDonorAvatar(userName, 'male');
+    const currentUserAvatar = getAvatarUrl(user?.avatar_url || '') || getDonorAvatar(userName, 'male');
+
+    const handleUpdateAvatar = async () => {
+        try {
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ['images'],
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.6,
+            });
+
+            if (!result.canceled) {
+                setUploading(true);
+                const cloudUrl = await uploadImage(result.assets[0].uri);
+
+                // Update Local DB
+                await updateDBUser(user!.id, { avatar_url: cloudUrl });
+
+                // Update Context
+                updateAuthUser({ avatar_url: cloudUrl });
+
+                showDialog('Success', 'Profile picture updated successfully!', 'success');
+            }
+        } catch (error: any) {
+            console.error('Avatar update error:', error);
+            showDialog('Error', 'Failed to update profile picture: ' + (error.message || 'Unknown error'), 'error');
+        } finally {
+            setUploading(false);
+        }
+    };
 
     const handleLogout = () => {
         logout();
@@ -147,12 +162,26 @@ export default function ProfileScreen() {
                     >
                         <View style={styles.userInfo}>
                             <View style={styles.avatarMainContainer}>
-                                <View style={styles.avatarRing}>
+                                <TouchableOpacity
+                                    style={styles.avatarRing}
+                                    onPress={handleUpdateAvatar}
+                                    disabled={uploading}
+                                >
                                     <Image
                                         source={{ uri: currentUserAvatar || theme.avatar }}
                                         style={styles.profileImage}
                                     />
-                                </View>
+                                    {uploading && (
+                                        <View style={[StyleSheet.absoluteFill, styles.avatarOverlay]}>
+                                            <ActivityIndicator color="#FFFFFF" />
+                                        </View>
+                                    )}
+                                    {!uploading && (
+                                        <View style={styles.cameraBadge}>
+                                            <Camera size={12} color="#FFFFFF" />
+                                        </View>
+                                    )}
+                                </TouchableOpacity>
                                 <View style={[styles.verifyBadge, { backgroundColor: '#34C759' }]}>
                                     <ShieldCheck size={14} color="#FFFFFF" strokeWidth={3} />
                                 </View>
@@ -211,9 +240,9 @@ export default function ProfileScreen() {
                             onPress: async () => {
                                 try {
                                     await sync();
-                                    Alert.alert('Success', 'Database synced with cloud.');
+                                    showDialog('Success', 'Database synced with cloud.', 'success');
                                 } catch (e) {
-                                    Alert.alert('Error', 'Sync failed. Check console.');
+                                    showDialog('Error', 'Sync failed. Check console.', 'error');
                                 }
                             }
                         })}
@@ -457,5 +486,24 @@ const styles = StyleSheet.create({
         fontSize: 11,
         fontWeight: '800',
         letterSpacing: 2,
-    }
+    },
+    cameraBadge: {
+        position: 'absolute',
+        bottom: 0,
+        right: 0,
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: '#FF3B30',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 3,
+        borderColor: '#FFFFFF',
+    },
+    avatarOverlay: {
+        backgroundColor: 'rgba(0,0,0,0.4)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRadius: 50,
+    },
 });

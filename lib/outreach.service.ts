@@ -64,19 +64,21 @@ export async function getLeadById(id: number): Promise<OutreachLead | null> {
 }
 
 export async function createLead(data: Partial<OutreachLead> & { created_by: number }): Promise<number> {
-    const result = await execute(`
+    const newId = Date.now();
+    await execute(`
         INSERT INTO outreach_leads (
-            organization_name, poc_name, poc_phone, poc_email,
+            id, organization_name, poc_name, poc_phone, poc_email,
             purpose, occasion, type, org_category, city, location,
             assigned_to, created_by, notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
+        newId,
         data.organization_name, data.poc_name, data.poc_phone, data.poc_email || '',
         data.purpose || '', data.occasion || '', data.type || 'camp',
         data.org_category || 'other', data.city || '', data.location || '',
         data.assigned_to || data.created_by, data.created_by, data.notes || ''
     ]);
-    return Number(result.lastInsertRowid);
+    return newId;
 }
 
 export async function updateLeadStatus(id: number, status: string, notes?: string): Promise<void> {

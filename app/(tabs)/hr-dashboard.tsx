@@ -1,5 +1,6 @@
 import { getDonorAvatar } from '@/constants/AvatarMapping';
 import { useAuth } from '@/context/AuthContext';
+import { useDialog } from '@/context/DialogContext';
 import { getAllUsers } from '@/lib/auth.service';
 import { getManagerStats, getVolunteerStats, setScheduleEditingEnabled } from '@/lib/hr.service';
 import { Image } from 'expo-image';
@@ -7,7 +8,8 @@ import { useRouter } from 'expo-router';
 import { Bell, ChevronLeft, ChevronRight, Download, Filter, Heart, LogOut, Mail, MessageCircle, MoreHorizontal, Phone, PieChart, Search, Settings, Shield, Star, Target, TrendingUp, Users } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-    ActivityIndicator, Alert,
+    ActivityIndicator,
+    DeviceEventEmitter,
     Dimensions,
     RefreshControl, ScrollView,
     StyleSheet, Switch, Text, TouchableOpacity, View
@@ -39,6 +41,7 @@ type Tab = 'overview' | 'reports' | 'roles' | 'more';
 
 export default function HRDashboardScreen() {
     const { user } = useAuth();
+    const { showDialog } = useDialog();
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const [tab, setTab] = useState<Tab>('overview');
@@ -79,18 +82,26 @@ export default function HRDashboardScreen() {
         }
     }, []);
 
-    useEffect(() => { loadData(); }, [loadData]);
+    useEffect(() => {
+        loadData();
+        const sub = DeviceEventEmitter.addListener('db_synced', () => {
+            console.log('🔄 Auto-refreshing HR dashboard due to background sync');
+            loadData();
+        });
+        return () => sub.remove();
+    }, [loadData]);
 
     const handleToggleSchedule = async (targetUserId: number, enabled: boolean) => {
         try {
             await setScheduleEditingEnabled(targetUserId, enabled, user!.id);
             setScheduleSettings(prev => ({ ...prev, [targetUserId]: enabled }));
-            Alert.alert(
+            showDialog(
                 enabled ? 'Unlocked' : 'Locked',
-                `Schedule editing ${enabled ? 'enabled' : 'disabled'} for this user.`
+                `Schedule editing ${enabled ? 'enabled' : 'disabled'} for this user.`,
+                'success'
             );
         } catch (e: any) {
-            Alert.alert('Error', e.message);
+            showDialog('Error', e.message, 'error');
         }
     };
 

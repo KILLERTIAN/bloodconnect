@@ -23,7 +23,7 @@ import {
     Zap
 } from 'lucide-react-native';
 import { useCallback, useEffect, useState } from 'react';
-import { Dimensions, RefreshControl, ScrollView, StatusBar, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { DeviceEventEmitter, Dimensions, RefreshControl, ScrollView, StatusBar, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
 import Animated, {
     FadeInDown,
@@ -142,6 +142,11 @@ export default function DashboardScreen() {
 
     useEffect(() => {
         loadData();
+        const sub = DeviceEventEmitter.addListener('db_synced', () => {
+            console.log('🔄 Auto-refreshing home due to background sync');
+            loadData();
+        });
+        return () => sub.remove();
     }, [loadData]);
 
     const onRefresh = async () => {
@@ -507,7 +512,11 @@ export default function DashboardScreen() {
                 </View>
 
                 <View style={styles.statsGrid}>
-                    <View style={styles.adminStatCard}>
+                    <TouchableOpacity
+                        style={styles.adminStatCard}
+                        activeOpacity={0.8}
+                        onPress={() => router.push({ pathname: '/(tabs)/helpline', params: { tab: 'live' } })}
+                    >
                         <View style={[styles.adminStatIconBox, { backgroundColor: '#FFEBEA' }]}>
                             <Droplet size={20} color="#FF3B30" />
                         </View>
@@ -515,8 +524,12 @@ export default function DashboardScreen() {
                             <Text style={styles.adminStatValue}>{stats.cases}</Text>
                             <Text style={styles.adminStatLabel}>Active Cases</Text>
                         </View>
-                    </View>
-                    <View style={styles.adminStatCard}>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.adminStatCard}
+                        activeOpacity={0.8}
+                        onPress={() => router.push({ pathname: '/(tabs)/helpline', params: { tab: 'donors' } })}
+                    >
                         <View style={[styles.adminStatIconBox, { backgroundColor: '#EAF6FF' }]}>
                             <Users size={20} color="#007AFF" />
                         </View>
@@ -524,7 +537,7 @@ export default function DashboardScreen() {
                             <Text style={styles.adminStatValue}>{stats.donors}</Text>
                             <Text style={styles.adminStatLabel}>Total Donors</Text>
                         </View>
-                    </View>
+                    </TouchableOpacity>
                 </View>
 
                 <View style={styles.section}>

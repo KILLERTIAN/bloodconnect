@@ -38,8 +38,11 @@ function AppInitializer({ children }: { children: React.ReactNode }) {
         await registerForPushNotificationsAsync();
         await initializeSyncManager();
         console.log('✅ App initialized: Notifications and Sync Manager ready');
-      } catch (e) {
-        console.error('❌ App init error:', e);
+      } catch (e: any) {
+        // Only log critical errors, ignore "aps-environment" entitlement warning as it's common in dev
+        if (!e?.message?.includes('aps-environment')) {
+          console.error('❌ App init error:', e);
+        }
       }
     }
     init();

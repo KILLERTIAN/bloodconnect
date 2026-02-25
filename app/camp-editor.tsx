@@ -1,8 +1,8 @@
 import { useAuth } from '@/context/AuthContext';
 import { useDialog } from '@/context/DialogContext';
+import { getTransformedUrl, uploadImage } from '@/lib/cloudinary.service';
 import { sync } from '@/lib/database';
 import { createEvent, Event, getEventById, updateEvent } from '@/lib/events.service';
-import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -10,6 +10,7 @@ import { ArrowLeft, Calendar, Clock, Eye, Image as ImageIcon, MapPin, Phone, Sav
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
+    DeviceEventEmitter,
     Image,
     KeyboardAvoidingView,
     Modal,
@@ -32,6 +33,7 @@ export default function CampEditorScreen() {
 
     const [loading, setLoading] = useState(!!id);
     const [submitting, setSubmitting] = useState(false);
+    const [uploading, setUploading] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
 
     const [form, setForm] = useState<Partial<Event>>({
@@ -78,24 +80,20 @@ export default function CampEditorScreen() {
             mediaTypes: ['images'],
             allowsEditing: true,
             aspect: [16, 9],
-            quality: 0.8,
+            quality: 0.6, // Compressed for web
         });
 
         if (!result.canceled) {
-            const uri = result.assets[0].uri;
-            const fileName = uri.split('/').pop();
-            const newPath = (FileSystem.documentDirectory || '') + (fileName || 'camp_banner.jpg');
-
+            setUploading(true);
             try {
-                await FileSystem.copyAsync({
-                    from: uri,
-                    to: newPath
-                });
-                setForm(prev => ({ ...prev, image_url: newPath }));
+                const cloudUrl = await uploadImage(result.assets[0].uri);
+                setForm(prev => ({ ...prev, image_url: cloudUrl }));
             } catch (e) {
-                console.error("Error saving image:", e);
-                // Fallback to original uri if copy fails
-                setForm(prev => ({ ...prev, image_url: uri }));
+                console.error("Error uploading image:", e);
+                showDialog('Upload Failed', 'Could not upload image to cloud. Using local path instead.', 'warning');
+                setForm(prev => ({ ...prev, image_url: result.assets[0].uri }));
+            } finally {
+                setUploading(false);
             }
         }
     };
@@ -118,6 +116,7 @@ export default function CampEditorScreen() {
                     } catch (syncError) {
                         console.log('⚠️ Camp updated locally, will sync when online');
                     }
+                    DeviceEventEmitter.emit('db_synced');
                     showDialog('Success', 'Camp updated successfully', 'success', [
                         { label: 'OK', onPress: () => router.back() }
                     ]);
@@ -140,6 +139,8 @@ export default function CampEditorScreen() {
                 } catch (syncError) {
                     console.log('⚠️ Camp saved locally, will sync when online');
                 }
+
+                DeviceEventEmitter.emit('db_synced');
 
                 showDialog('Success', 'Camp created successfully! It will appear in the events feed.', 'success', [
                     { label: 'OK', onPress: () => router.back() }
@@ -189,18 +190,29 @@ export default function CampEditorScreen() {
                         bounces={true}
                     >
                         {/* Banner Image Section */}
-                        <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
-                            {form.image_url ? (
-                                <Image source={{ uri: form.image_url }} style={styles.bannerImage} />
+                        <TouchableOpacity
+                            style={styles.imagePicker}
+                            onPress={pickImage}
+                            disabled={uploading}
+                        >
+                            {uploading ? (
+                                <View style={styles.imagePlaceholder}>
+                                    <ActivityIndicator size="small" color="#FF3B30" />
+                                    <Text style={styles.imagePlaceholderText}>Uploading to Cloud...</Text>
+                                </View>
+                            ) : form.image_url ? (
+                                <Image source={{ uri: getTransformedUrl(form.image_url) }} style={styles.bannerImage} />
                             ) : (
                                 <View style={styles.imagePlaceholder}>
                                     <ImageIcon size={40} color="#8E8E93" />
                                     <Text style={styles.imagePlaceholderText}>Tap to add cover image</Text>
                                 </View>
                             )}
-                            <View style={styles.editImageBadge}>
-                                <ImageIcon size={14} color="#FFFFFF" />
-                            </View>
+                            {!uploading && (
+                                <View style={styles.editImageBadge}>
+                                    <ImageIcon size={14} color="#FFFFFF" />
+                                </View>
+                            )}
                         </TouchableOpacity>
 
                         {/* Form Fields */}
@@ -442,7 +454,7 @@ export default function CampEditorScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#D32F2F' },
+    container: { flex: 1, backgroundColor: '#B71C1C' },
     contentContainer: { flex: 1, backgroundColor: '#F2F2F7', borderTopLeftRadius: 30, borderTopRightRadius: 30, overflow: 'hidden' },
     centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     header: { padding: 20, paddingBottom: 24 },

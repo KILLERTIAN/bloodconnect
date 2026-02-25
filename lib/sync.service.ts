@@ -1,10 +1,11 @@
-import { Platform } from 'react-native';
-import { getSyncStatus, manualSync, stopAutoSync, sync } from './database';
+import { DeviceEventEmitter, Platform } from 'react-native';
+import { flushPendingWrites, getSyncStatus, manualSync, stopAutoSync, sync } from './database';
 
-// Track network status
+// Tracking variables
 let isOnline = true;
 let networkUnsubscribe: (() => void) | null = null;
 let NetInfo: any = null;
+let autoSyncInterval: ReturnType<typeof setInterval> | null = null;
 
 // Sync queue for offline operations
 interface QueuedOperation {
@@ -16,6 +17,7 @@ interface QueuedOperation {
 
 const syncQueue: QueuedOperation[] = [];
 const MAX_RETRIES = 3;
+const AUTO_SYNC_INTERVAL_MS = 30000; // 30 seconds
 
 /**
  * Initialize network monitoring and sync management
@@ -48,6 +50,16 @@ export async function initializeSyncManager() {
         const state = await NetInfo.fetch();
         isOnline = state.isConnected ?? false;
 
+        // Set up the interval for auto sync every 30 seconds
+        if (!autoSyncInterval) {
+            autoSyncInterval = setInterval(() => {
+                if (isOnline) {
+                    console.log('🔄 Running scheduled auto-sync...');
+                    handleOnlineSync();
+                }
+            }, AUTO_SYNC_INTERVAL_MS);
+        }
+
         console.log('✅ Sync manager initialized');
     } catch (e) {
         console.warn('⚠️ NetInfo module not found or failed to initialize. Sync will default to online mode, but auto-detection may fail. Please rebuild the app.');
@@ -64,6 +76,10 @@ export function cleanupSyncManager() {
         networkUnsubscribe();
         networkUnsubscribe = null;
     }
+    if (autoSyncInterval) {
+        clearInterval(autoSyncInterval);
+        autoSyncInterval = null;
+    }
     stopAutoSync();
     console.log('🛑 Sync manager cleaned up');
 }
@@ -73,11 +89,16 @@ export function cleanupSyncManager() {
  */
 async function handleOnlineSync() {
     try {
-        // Sync with cloud
+        // First, flush any writes that were queued while offline
+        await flushPendingWrites();
+
+        // Sync with cloud (pulls remote → local)
         const result = await sync();
 
         if (result.success) {
             console.log('✅ Online sync successful');
+            // Notify the UI to refresh without user interaction
+            DeviceEventEmitter.emit('db_synced');
             // Process any queued operations
             await processQueue();
         }

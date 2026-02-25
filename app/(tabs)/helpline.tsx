@@ -1,28 +1,44 @@
+import { getDonorAvatar } from '@/constants/AvatarMapping';
 import { useAuth } from '@/context/AuthContext';
+import { useDialog } from '@/context/DialogContext';
+import { sync } from '@/lib/database';
 import {
-    HelplineRequest, createHelplineRequest, getAllHelplineRequests,
-    getAssignedHelplines, getDonorsForHelpline, logCall, makeHelplineLive
+    HelplineRequest,
+    deleteHelplineRequest,
+    getAllHelplineRequests,
+    getAssignedHelplines,
+    getDonors,
+    getDonorsForHelpline, logCall, makeHelplineLive
 } from '@/lib/helpline.service';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
     Activity,
     Award,
     Building2,
     Check,
+    Clock,
     Droplet,
     MapPin,
     Navigation,
     Phone,
     Plus,
     Radio,
+    Search,
+    Trash2,
     User,
     X
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Linking,
-    Modal, Platform, RefreshControl, ScrollView, StyleSheet, Text,
-    TextInput, TouchableOpacity, View,
+    ActivityIndicator,
+    DeviceEventEmitter,
+    FlatList,
+    Image,
+    Linking,
+    Modal, Platform, RefreshControl,
+    StyleSheet, Text,
+    TextInput, TouchableOpacity, View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -38,71 +54,100 @@ const URGENCIES = ['critical', 'urgent', 'normal'];
 
 export default function HelplineScreen() {
     const { user, role } = useAuth();
+    const { showDialog } = useDialog();
+    const router = useRouter();
     const insets = useSafeAreaInsets();
     const [requests, setRequests] = useState<HelplineRequest[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
-    const [tab, setTab] = useState<'all' | 'live' | 'mine'>('all');
-    const [showAddModal, setShowAddModal] = useState(false);
+    const [tab, setTab] = useState<'all' | 'live' | 'mine' | 'donors'>('all');
     const [showCallModal, setShowCallModal] = useState(false);
     const [selectedRequest, setSelectedRequest] = useState<HelplineRequest | null>(null);
     const [donors, setDonors] = useState<any[]>([]);
+    const [globalDonors, setGlobalDonors] = useState<any[]>([]);
+    const params = useLocalSearchParams();
+
+    useEffect(() => {
+        if (params.tab && ['all', 'live', 'mine', 'donors'].includes(params.tab as string)) {
+            setTab(params.tab as any);
+        }
+    }, [params.tab]);
     const [selectedDonor, setSelectedDonor] = useState<any | null>(null);
     const [callOutcome, setCallOutcome] = useState('');
     const [callRemarks, setCallRemarks] = useState('');
     const [callTimer, setCallTimer] = useState(0);
     const timerRef = useRef<any>(null);
 
-    const [form, setForm] = useState({
-        patient_name: '', blood_group: 'A+', blood_component: 'Whole Blood',
-        units_required: '1', hospital: '', city: '', attender_name: '',
-        attender_contact: '', urgency: 'urgent', required_till: '', notes: '',
-    });
+    const [donorSearch, setDonorSearch] = useState('');
 
-    const loadRequests = useCallback(async () => {
+    const filteredDonors = donors.filter(d =>
+        !donorSearch ||
+        d.name.toLowerCase().includes(donorSearch.toLowerCase()) ||
+        d.phone.includes(donorSearch) ||
+        d.city.toLowerCase().includes(donorSearch.toLowerCase())
+    );
+
+    const filteredGlobalDonors = globalDonors.filter(d =>
+        !donorSearch ||
+        d.name.toLowerCase().includes(donorSearch.toLowerCase()) ||
+        d.phone.includes(donorSearch) ||
+        d.city.toLowerCase().includes(donorSearch.toLowerCase()) ||
+        d.blood_group.toLowerCase().includes(donorSearch.toLowerCase())
+    );
+
+    const loadData = useCallback(async () => {
         try {
-            let data: HelplineRequest[];
-            if (tab === 'mine' && user) {
-                data = await getAssignedHelplines(user.id) as any;
+            setLoading(true);
+            if (tab === 'donors') {
+                const data = await getDonors();
+                setGlobalDonors(data);
             } else {
-                data = await getAllHelplineRequests();
-                if (tab === 'live') data = data.filter(r => r.is_live);
+                let data: HelplineRequest[];
+                if (tab === 'mine' && user) {
+                    data = await getAssignedHelplines(user.id) as any;
+                } else {
+                    data = await getAllHelplineRequests();
+                    if (tab === 'live') data = data.filter(r => r.is_live);
+                }
+                setRequests(data);
             }
-            setRequests(data);
         } catch (e) { console.error(e); }
         finally { setLoading(false); setRefreshing(false); }
     }, [tab, user]);
 
-    useEffect(() => { loadRequests(); }, [loadRequests]);
-
-    const handleCreate = async () => {
-        if (!form.patient_name || !form.hospital || !form.city || !form.attender_contact) {
-            Alert.alert('Missing Fields', 'Patient name, hospital, city and attender contact are required.');
-            return;
-        }
-        try {
-            await createHelplineRequest({
-                ...form,
-                units_required: parseInt(form.units_required) || 1,
-                created_by: user!.id,
-            } as any);
-            setShowAddModal(false);
-            setForm({ patient_name: '', blood_group: 'A+', blood_component: 'Whole Blood', units_required: '1', hospital: '', city: '', attender_name: '', attender_contact: '', urgency: 'urgent', required_till: '', notes: '' });
-            loadRequests();
-            Alert.alert('Created', 'Helpline request created successfully.');
-        } catch (e: any) {
-            Alert.alert('Error', e.message);
-        }
-    };
+    useEffect(() => {
+        loadData();
+        const sub = DeviceEventEmitter.addListener('db_synced', () => {
+            console.log('🔄 Auto-refreshing helplines due to background sync');
+            loadData();
+        });
+        return () => sub.remove();
+    }, [loadData]);
 
     const handleMakeLive = async (req: HelplineRequest) => {
-        Alert.alert('Make Live', 'This will assign a volunteer automatically. Continue?', [
-            { text: 'Cancel', style: 'cancel' },
+        showDialog('Make Live', 'This will assign a volunteer automatically. Continue?', 'info', [
+            { label: 'Cancel', style: 'cancel', onPress: () => { } },
             {
-                text: 'Go Live', onPress: async () => {
+                label: 'Go Live', onPress: async () => {
                     await makeHelplineLive(req.id);
-                    loadRequests();
-                    Alert.alert('Live!', 'Helpline is now live and a volunteer has been assigned.');
+                    try { await sync(); } catch (e) { }
+                    DeviceEventEmitter.emit('db_synced');
+                    showDialog('Live!', 'Helpline is now live and a volunteer has been assigned.', 'success');
+                }
+            }
+        ]);
+    };
+
+    const handleDeleteRequest = async (req: HelplineRequest) => {
+        showDialog('Delete Request', `Delete request for ${req.patient_name}?`, 'warning', [
+            { label: 'Cancel', style: 'cancel', onPress: () => { } },
+            {
+                label: 'Delete', style: 'destructive', onPress: async () => {
+                    const ok = await deleteHelplineRequest(req.id, user!.id, role === 'admin');
+                    if (ok) {
+                        try { await sync(); } catch (e) { }
+                        DeviceEventEmitter.emit('db_synced');
+                    }
                 }
             }
         ]);
@@ -125,11 +170,11 @@ export default function HelplineScreen() {
     const handleEndCall = async () => {
         clearInterval(timerRef.current);
         if (!callRemarks.trim()) {
-            Alert.alert('Remarks Required', 'You must fill in call remarks before closing.');
+            showDialog('Remarks Required', 'You must fill in call remarks before closing.', 'warning');
             return;
         }
         if (!callOutcome) {
-            Alert.alert('Outcome Required', 'Please select a call outcome.');
+            showDialog('Outcome Required', 'Please select a call outcome.', 'warning');
             return;
         }
         try {
@@ -145,9 +190,9 @@ export default function HelplineScreen() {
             setCallRemarks('');
             setCallOutcome('');
             setCallTimer(0);
-            Alert.alert('Call Logged', 'Call details saved successfully.');
+            showDialog('Call Logged', 'Call details saved successfully.', 'success');
         } catch (e: any) {
-            Alert.alert('Error', e.message);
+            showDialog('Error', e.message, 'error');
         }
     };
 
@@ -165,16 +210,32 @@ export default function HelplineScreen() {
                             <Text style={styles.bloodTextCompact}>{item.blood_group}</Text>
                         </View>
                         <View style={styles.headerInfo}>
-                            <Text style={styles.patientName} numberOfLines={1}>{item.patient_name}</Text>
-                            <View style={styles.hospitalRow}>
-                                <Building2 size={12} color="#8E8E93" />
-                                <Text style={styles.hospitalName} numberOfLines={1}>{item.hospital}</Text>
+                            <View style={styles.patientRowWithAvatar}>
+                                <View style={styles.smallAvatarContainer}>
+                                    <Image
+                                        source={{ uri: getDonorAvatar(item.patient_name || 'Patient', 'male') }}
+                                        style={styles.smallAvatar}
+                                    />
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.patientName} numberOfLines={1}>{item.patient_name}</Text>
+                                    <View style={styles.hospitalRow}>
+                                        <Building2 size={12} color="#8E8E93" />
+                                        <Text style={styles.hospitalName} numberOfLines={1}>{item.hospital}</Text>
+                                    </View>
+                                </View>
                             </View>
                         </View>
                         <View style={styles.urgencyWrapper}>
                             <View style={[styles.urgencyBadge, { backgroundColor: uc.bg }]}>
                                 <Text style={[styles.urgencyText, { color: uc.color }]}>{uc.label}</Text>
                             </View>
+                            {item.case_type === 'scheduled' && (
+                                <View style={[styles.urgencyBadge, { backgroundColor: '#F2F2F7', marginTop: 4 }]}>
+                                    <Clock size={10} color="#8E8E93" />
+                                    <Text style={[styles.urgencyText, { color: '#8E8E93', fontSize: 9 }]}>SCHEDULED</Text>
+                                </View>
+                            )}
                             {item.is_live ? (
                                 <View style={styles.liveIndicator}>
                                     <View style={styles.livePulse} />
@@ -207,6 +268,14 @@ export default function HelplineScreen() {
                                 <Text style={styles.actionBtnTextOutline}>Go Live</Text>
                             </TouchableOpacity>
                         )}
+                        {canManage && (
+                            <TouchableOpacity
+                                style={[styles.actionBtnOutline, { borderColor: '#F2F2F7' }]}
+                                onPress={() => handleDeleteRequest(item)}
+                            >
+                                <Trash2 size={16} color="#8E8E93" />
+                            </TouchableOpacity>
+                        )}
                         {(item.is_live || role === 'volunteer' || role === 'helpline') && (
                             <TouchableOpacity style={styles.actionBtnSolid} onPress={() => handleOpenCallModal(item)}>
                                 <Phone size={16} color="#FFFFFF" />
@@ -228,7 +297,7 @@ export default function HelplineScreen() {
                 </View>
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                     {(role === 'admin' || role === 'helpline' || role === 'manager') && (
-                        <TouchableOpacity style={styles.headerBtn} onPress={() => setShowAddModal(true)}>
+                        <TouchableOpacity style={styles.headerBtn} onPress={() => router.push('/create-request')}>
                             <Plus size={22} color="#FFFFFF" strokeWidth={3} />
                         </TouchableOpacity>
                     )}
@@ -238,9 +307,10 @@ export default function HelplineScreen() {
             {/* Tabs */}
             <View style={styles.tabBar}>
                 {[
-                    { key: 'all', label: 'All' },
+                    { key: 'all', label: 'All Cases' },
                     { key: 'live', label: 'Live' },
                     { key: 'mine', label: 'My Cases' },
+                    { key: 'donors', label: 'Donors' },
                 ].map(t => (
                     <TouchableOpacity
                         key={t.key}
@@ -256,109 +326,60 @@ export default function HelplineScreen() {
                 <View style={styles.centered}><ActivityIndicator size="large" color="#FF3B30" /></View>
             ) : (
                 <FlatList
-                    data={requests}
+                    data={tab === 'donors' ? filteredGlobalDonors : requests}
                     keyExtractor={item => String(item.id)}
-                    renderItem={renderRequest}
+                    ListHeaderComponent={tab === 'donors' ? (
+                        <View style={styles.donorSearchContainer}>
+                            <View style={styles.donorSearchBar}>
+                                <Search size={18} color="#8E8E93" />
+                                <TextInput
+                                    style={styles.donorSearchInput}
+                                    placeholder="Search by name, city or blood group..."
+                                    placeholderTextColor="#C7C7CC"
+                                    value={donorSearch}
+                                    onChangeText={setDonorSearch}
+                                />
+                            </View>
+                        </View>
+                    ) : null}
+                    renderItem={tab === 'donors' ? ({ item }) => (
+                        <View style={[styles.premiumDonorCard, { marginHorizontal: 16, marginTop: 12 }]}>
+                            <View style={styles.donorAvatarBase}>
+                                <Image
+                                    source={{ uri: getDonorAvatar(item.name, item.gender) }}
+                                    style={styles.donorAvatarImg}
+                                />
+                            </View>
+                            <View style={styles.donorInfoMain}>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                                    <Text style={styles.donorNameText}>{item.name}</Text>
+                                    <View style={[styles.bloodBadgeCompact, { width: 32, height: 32, backgroundColor: '#F2F2F7' }]}>
+                                        <Text style={{ fontSize: 10, fontWeight: '900', color: '#FF3B30' }}>{item.blood_group}</Text>
+                                    </View>
+                                </View>
+                                <Text style={styles.donorMetaText}>{item.city} • {item.location || 'Local'}</Text>
+                                <View style={styles.donorStatsRow} />
+                            </View>
+                            <TouchableOpacity
+                                style={[styles.callActionBtn, { backgroundColor: '#007AFF' }]}
+                                onPress={() => Linking.openURL(`tel:${item.phone}`)}
+                            >
+                                <Phone size={18} color="#FFFFFF" fill="#FFFFFF" />
+                            </TouchableOpacity>
+                        </View>
+                    ) : renderRequest}
                     contentContainerStyle={styles.list}
-                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadRequests(); }} />}
+                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />}
                     ListEmptyComponent={
                         <View style={styles.emptyState}>
-                            <Activity size={48} color="#C7C7CC" />
-                            <Text style={styles.emptyText}>No requests found</Text>
+                            <User size={48} color="#C7C7CC" />
+                            <Text style={styles.emptyText}>No {tab === 'donors' ? 'donors' : 'requests'} found</Text>
                         </View>
                     }
                 />
             )}
 
-            {/* Add Request Modal */}
-            <Modal visible={showAddModal} animationType="slide" presentationStyle="pageSheet">
-                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-                    <View style={styles.modalContainer}>
-                        <View style={[styles.modalHeader, { paddingTop: Platform.OS === 'android' ? insets.top + 16 : 20, paddingBottom: 16 }]}>
-                            <TouchableOpacity onPress={() => setShowAddModal(false)} style={styles.modalCloseBtn}>
-                                <X size={24} color="#8E8E93" />
-                            </TouchableOpacity>
-                            <Text style={styles.modalTitle}>New Request</Text>
-                            <TouchableOpacity onPress={handleCreate} style={styles.modalSaveBtn}>
-                                <Check size={24} color="#34C759" />
-                            </TouchableOpacity>
-                        </View>
-                        <ScrollView style={styles.modalScroll} keyboardShouldPersistTaps="handled">
-                            {[
-                                { label: 'Patient Name *', key: 'patient_name', placeholder: 'Full name' },
-                                { label: 'Hospital *', key: 'hospital', placeholder: 'Hospital name' },
-                                { label: 'City *', key: 'city', placeholder: 'e.g. Bengaluru' },
-                                { label: 'Attender Name', key: 'attender_name', placeholder: 'Attender full name' },
-                                { label: 'Attender Contact *', key: 'attender_contact', placeholder: '9XXXXXXXXX', keyboard: 'phone-pad' },
-                                { label: 'Units Required', key: 'units_required', placeholder: '1', keyboard: 'numeric' },
-                                { label: 'Required Till Date', key: 'required_till', placeholder: 'YYYY-MM-DD' },
-                                { label: 'Notes', key: 'notes', placeholder: 'Additional info...', multiline: true },
-                            ].map(field => (
-                                <View key={field.key} style={styles.formGroup}>
-                                    <Text style={styles.formLabel}>{field.label}</Text>
-                                    <TextInput
-                                        style={[styles.formInput, (field as any).multiline && { height: 80, textAlignVertical: 'top' }]}
-                                        placeholder={field.placeholder}
-                                        placeholderTextColor="#C7C7CC"
-                                        value={(form as any)[field.key]}
-                                        onChangeText={v => setForm(f => ({ ...f, [field.key]: v }))}
-                                        keyboardType={(field as any).keyboard || 'default'}
-                                        multiline={(field as any).multiline}
-                                    />
-                                </View>
-                            ))}
 
-                            <View style={styles.formGroup}>
-                                <Text style={styles.formLabel}>Blood Group</Text>
-                                <View style={styles.chipRow}>
-                                    {BLOOD_GROUPS.map(bg => (
-                                        <TouchableOpacity
-                                            key={bg}
-                                            style={[styles.chip, form.blood_group === bg && styles.chipActiveRed]}
-                                            onPress={() => setForm(f => ({ ...f, blood_group: bg }))}
-                                        >
-                                            <Text style={[styles.chipText, form.blood_group === bg && { color: '#FFFFFF' }]}>{bg}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                            </View>
-
-                            <View style={styles.formGroup}>
-                                <Text style={styles.formLabel}>Blood Component</Text>
-                                <View style={styles.chipRow}>
-                                    {COMPONENTS.map(c => (
-                                        <TouchableOpacity
-                                            key={c}
-                                            style={[styles.chip, form.blood_component === c && styles.chipActiveRed]}
-                                            onPress={() => setForm(f => ({ ...f, blood_component: c }))}
-                                        >
-                                            <Text style={[styles.chipText, form.blood_component === c && { color: '#FFFFFF' }]}>{c}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                            </View>
-
-                            <View style={styles.formGroup}>
-                                <Text style={styles.formLabel}>Urgency</Text>
-                                <View style={styles.chipRow}>
-                                    {URGENCIES.map(u => {
-                                        const uc = URGENCY_CONFIG[u as keyof typeof URGENCY_CONFIG];
-                                        return (
-                                            <TouchableOpacity
-                                                key={u}
-                                                style={[styles.chip, form.urgency === u && { backgroundColor: uc.color, borderColor: uc.color }]}
-                                                onPress={() => setForm(f => ({ ...f, urgency: u }))}
-                                            >
-                                                <Text style={[styles.chipText, form.urgency === u && { color: '#FFFFFF' }]}>{uc.label}</Text>
-                                            </TouchableOpacity>
-                                        );
-                                    })}
-                                </View>
-                            </View>
-                        </ScrollView>
-                    </View>
-                </KeyboardAvoidingView>
-            </Modal>
 
             {/* Call Donors Modal */}
             <Modal visible={showCallModal} animationType="slide" presentationStyle="pageSheet">
@@ -389,7 +410,10 @@ export default function HelplineScreen() {
                                     <View style={styles.pulseContainer}>
                                         <View style={styles.pulseRing} />
                                         <View style={styles.callAvatar}>
-                                            <User size={32} color="#FFFFFF" />
+                                            <Image
+                                                source={{ uri: getDonorAvatar(selectedDonor.name, selectedDonor.gender) }}
+                                                style={styles.donorAvatarImg}
+                                            />
                                         </View>
                                     </View>
                                     <Text style={styles.callStatus}>IN CALL</Text>
@@ -446,54 +470,77 @@ export default function HelplineScreen() {
                             </LinearGradient>
                         </View>
                     ) : (
-                        <FlatList
-                            data={donors}
-                            keyExtractor={item => String(item.id)}
-                            contentContainerStyle={styles.donorList}
-                            ListHeaderComponent={
-                                <View style={styles.listHintBox}>
-                                    <Navigation size={14} color="#007AFF" />
-                                    <Text style={styles.donorListHint}>
-                                        Donors are ranked by proximity to hospital first, then by donation eligibility.
-                                    </Text>
+                        <>
+                            <View style={styles.donorSearchContainer}>
+                                <View style={styles.donorSearchBar}>
+                                    <Search size={18} color="#8E8E93" />
+                                    <TextInput
+                                        style={styles.donorSearchInput}
+                                        placeholder="Search by name, phone or city..."
+                                        placeholderTextColor="#C7C7CC"
+                                        value={donorSearch}
+                                        onChangeText={setDonorSearch}
+                                    />
                                 </View>
-                            }
-                            renderItem={({ item, index }) => (
-                                <View style={styles.premiumDonorCard}>
-                                    <View style={styles.donorAvatarBase}>
-                                        <Text style={styles.donorInitial}>{item.name.charAt(0)}</Text>
+                                <TouchableOpacity style={styles.donorFilterBtn}>
+                                    <Droplet size={20} color="#FF3B30" />
+                                </TouchableOpacity>
+                            </View>
+
+                            <FlatList
+                                data={filteredDonors}
+                                keyExtractor={item => String(item.id)}
+                                contentContainerStyle={styles.donorList}
+                                ListHeaderComponent={
+                                    <View style={styles.listHintBox}>
+                                        <View style={styles.hintIconCircle}>
+                                            <Navigation size={14} color="#007AFF" />
+                                        </View>
+                                        <Text style={styles.donorListHint}>
+                                            {selectedRequest ? `${selectedRequest.blood_group} compatible donors ranked by proximity to ${selectedRequest.hospital}.` : 'Listing all donors from database.'}
+                                        </Text>
                                     </View>
-                                    <View style={styles.donorInfoMain}>
-                                        <Text style={styles.donorNameText}>{item.name}</Text>
-                                        <Text style={styles.donorMetaText}>{item.city} • {item.location || 'Local'}</Text>
-                                        <View style={styles.donorStatsRow}>
-                                            <View style={styles.donorStatItem}>
-                                                <Award size={10} color="#FF9500" />
-                                                <Text style={styles.donorStatLabel}>{item.total_donations || 0} Donations</Text>
-                                            </View>
-                                            <View style={styles.donorStatItem}>
-                                                <Activity size={10} color="#34C759" />
-                                                <Text style={styles.donorStatLabel}>Last: {item.last_donation_date || 'Never'}</Text>
+                                }
+                                renderItem={({ item, index }) => (
+                                    <View style={styles.premiumDonorCard}>
+                                        <View style={styles.donorAvatarBase}>
+                                            <Image
+                                                source={{ uri: getDonorAvatar(item.name, item.gender) }}
+                                                style={styles.donorAvatarImg}
+                                            />
+                                        </View>
+                                        <View style={styles.donorInfoMain}>
+                                            <Text style={styles.donorNameText}>{item.name}</Text>
+                                            <Text style={styles.donorMetaText}>{item.city} • {item.location || 'Local'}</Text>
+                                            <View style={styles.donorStatsRow}>
+                                                <View style={styles.donorStatItem}>
+                                                    <Award size={10} color="#FF9500" />
+                                                    <Text style={styles.donorStatLabel}>{item.total_donations || 0} Donations</Text>
+                                                </View>
+                                                <View style={styles.donorStatItem}>
+                                                    <Activity size={10} color="#34C759" />
+                                                    <Text style={styles.donorStatLabel}>Last: {item.last_donation_date || 'Never'}</Text>
+                                                </View>
                                             </View>
                                         </View>
+                                        <TouchableOpacity style={styles.callActionBtn} onPress={() => handleCall(item)}>
+                                            <Phone size={18} color="#FFFFFF" fill="#FFFFFF" />
+                                        </TouchableOpacity>
                                     </View>
-                                    <TouchableOpacity style={styles.callActionBtn} onPress={() => handleCall(item)}>
-                                        <Phone size={18} color="#FFFFFF" fill="#FFFFFF" />
-                                    </TouchableOpacity>
-                                </View>
-                            )}
-                            ListEmptyComponent={
-                                <View style={styles.emptyCallState}>
-                                    <View style={styles.emptyIconCircle}>
-                                        <User size={40} color="#C7C7CC" />
+                                )}
+                                ListEmptyComponent={
+                                    <View style={styles.emptyCallState}>
+                                        <View style={styles.emptyIconCircle}>
+                                            <User size={40} color="#C7C7CC" />
+                                        </View>
+                                        <Text style={styles.emptyCallText}>No matching donors</Text>
+                                        <Text style={styles.emptyCallSubText}>
+                                            We couldn&apos;t find any available {selectedRequest?.blood_group} donors in the database for this area.
+                                        </Text>
                                     </View>
-                                    <Text style={styles.emptyCallText}>No matching donors</Text>
-                                    <Text style={styles.emptyCallSubText}>
-                                        We couldn't find any available {selectedRequest?.blood_group} donors in the database for this area.
-                                    </Text>
-                                </View>
-                            }
-                        />
+                                }
+                            />
+                        </>
                     )}
                 </View>
             </Modal>
@@ -520,8 +567,11 @@ const styles = StyleSheet.create({
     bloodTextCompact: { fontSize: 13, fontWeight: '900', color: '#FF3B30' },
     headerInfo: { flex: 1 },
     patientName: { fontSize: 17, fontWeight: '800', color: '#1C1C1E' },
-    hospitalRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+    hospitalRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 1 },
     hospitalName: { fontSize: 12, color: '#8E8E93', fontWeight: '600' },
+    patientRowWithAvatar: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    smallAvatarContainer: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#F2F2F7', overflow: 'hidden' },
+    smallAvatar: { width: 40, height: 40 },
     urgencyWrapper: { alignItems: 'flex-end', gap: 6 },
     urgencyBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
     urgencyText: { fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
@@ -550,7 +600,8 @@ const styles = StyleSheet.create({
     listHintBox: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#F0F7FF', padding: 12, borderRadius: 14, marginBottom: 20 },
     donorListHint: { fontSize: 12, color: '#007AFF', fontWeight: '600', flex: 1 },
     premiumDonorCard: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#F2F2F7' },
-    donorAvatarBase: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#F2F2F7', justifyContent: 'center', alignItems: 'center' },
+    donorAvatarBase: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#F2F2F7', overflow: 'hidden' },
+    donorAvatarImg: { width: 48, height: 48 },
     donorInitial: { fontSize: 18, fontWeight: '800', color: '#8E8E93' },
     donorInfoMain: { flex: 1 },
     donorNameText: { fontSize: 16, fontWeight: '800', color: '#1C1C1E' },
@@ -594,4 +645,9 @@ const styles = StyleSheet.create({
     centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     emptyState: { alignItems: 'center', paddingVertical: 80 },
     emptyText: { fontSize: 18, fontWeight: '800', color: '#1C1C1E', marginTop: 16 },
+    donorSearchContainer: { flexDirection: 'row', gap: 12, paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F2F2F7' },
+    donorSearchBar: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#F2F2F7', borderRadius: 12, paddingHorizontal: 12, height: 44 },
+    donorSearchInput: { flex: 1, fontSize: 14, color: '#1C1C1E' },
+    donorFilterBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#FFEBEA', justifyContent: 'center', alignItems: 'center' },
+    hintIconCircle: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#EAF6FF', justifyContent: 'center', alignItems: 'center' },
 });

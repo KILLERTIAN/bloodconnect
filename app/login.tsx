@@ -86,7 +86,7 @@ export default function LoginScreen() {
         // Donor login — uses role-selection flow
         login('donor', {
             id: 0,
-            name: 'Guest Donor',
+            name: 'Om',
             email: 'donor@bloodconnect.org',
             phone: '',
             role: 'donor',
@@ -307,7 +307,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center', alignItems: 'center',
         marginBottom: 14,
         shadowColor: '#FF3B30', shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.35, shadowRadius: 20, elevation: 10,
+        shadowOpacity: 0.35, shadowRadius: 20,
     },
     appName: { fontSize: 30, fontWeight: '900', color: '#1C1C1E', letterSpacing: -1 },
     appTagline: { fontSize: 14, color: '#8E8E93', fontWeight: '600', marginTop: 4 },
@@ -338,7 +338,7 @@ const styles = StyleSheet.create({
     formCard: {
         backgroundColor: '#FFFFFF', borderRadius: 28, padding: 24,
         shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.06, shadowRadius: 20, elevation: 4,
+        shadowOpacity: 0.06, shadowRadius: 20,
         marginBottom: 20,
     },
     formTitle: { fontSize: 22, fontWeight: '900', color: '#1C1C1E', letterSpacing: -0.5 },
@@ -355,7 +355,7 @@ const styles = StyleSheet.create({
         height: 54, borderRadius: 18,
         justifyContent: 'center', alignItems: 'center',
         shadowColor: '#FF3B30', shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.3, shadowRadius: 15, elevation: 8,
+        shadowOpacity: 0.3, shadowRadius: 15,
     },
     loginBtnText: { color: '#FFFFFF', fontSize: 17, fontWeight: '800', letterSpacing: -0.3 },
 
@@ -388,7 +388,7 @@ const styles = StyleSheet.create({
     donorCard: {
         backgroundColor: '#FFFFFF', borderRadius: 28, overflow: 'hidden',
         shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.08, shadowRadius: 24, elevation: 6,
+        shadowOpacity: 0.08, shadowRadius: 24,
         marginBottom: 20,
     },
     donorHero: { padding: 32, alignItems: 'center' },
@@ -398,7 +398,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#FFFFFF',
         justifyContent: 'center', alignItems: 'center',
         shadowColor: '#FF3B30', shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2, shadowRadius: 12, elevation: 6,
+        shadowOpacity: 0.2, shadowRadius: 12,
     },
     donorHeroTitle: { fontSize: 28, fontWeight: '900', color: '#FFFFFF', letterSpacing: -0.5 },
     donorHeroSub: { fontSize: 14, color: 'rgba(255,255,255,0.85)', fontWeight: '600', marginTop: 8, textAlign: 'center', lineHeight: 22 },
@@ -412,7 +412,7 @@ const styles = StyleSheet.create({
         height: 54, borderRadius: 18,
         flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
         shadowColor: '#FF3B30', shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.3, shadowRadius: 15, elevation: 8,
+        shadowOpacity: 0.3, shadowRadius: 15,
     },
     donorLoginText: { color: '#FFFFFF', fontSize: 17, fontWeight: '800' },
     donorNote: { fontSize: 12, color: '#8E8E93', fontWeight: '600', textAlign: 'center', lineHeight: 18 },

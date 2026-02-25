@@ -1,6 +1,7 @@
 import { useAuth } from '@/context/AuthContext';
-import { manualSync } from '@/lib/database';
-import { EVENT_STATUSES, Event, advanceEventStatus, getAllEvents } from '@/lib/events.service';
+import { useDialog } from '@/context/DialogContext';
+import { manualSync, sync } from '@/lib/database';
+import { EVENT_STATUSES, Event, advanceEventStatus, deleteEvent, getAllEvents } from '@/lib/events.service';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import {
@@ -12,12 +13,13 @@ import {
     MapPin,
     Phone,
     Plus,
-    Search
+    Search,
+    Trash2
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
+    DeviceEventEmitter,
     FlatList,
     RefreshControl,
     ScrollView,
@@ -42,6 +44,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function CampManagerScreen() {
     const { user, role } = useAuth();
+    const { showDialog } = useDialog();
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const [events, setEvents] = useState<Event[]>([]);
@@ -79,26 +82,59 @@ export default function CampManagerScreen() {
         }
     }, [role, user, isDonorOrVolunteer]);
 
-    useEffect(() => { loadEvents(); }, [loadEvents]);
+    useEffect(() => {
+        loadEvents();
+        const sub = DeviceEventEmitter.addListener('db_synced', () => {
+            console.log('🔄 Auto-refreshing camps due to background sync');
+            loadEvents();
+        });
+        return () => sub.remove();
+    }, [loadEvents]);
 
 
 
     const handleAdvanceStatus = async (event: Event) => {
         const currentIdx = EVENT_STATUSES.findIndex(s => s.key === event.status);
         if (currentIdx >= EVENT_STATUSES.length - 1) {
-            Alert.alert('Already Closed', 'This camp is already in the final stage.');
+            showDialog('Already Closed', 'This camp is already in the final stage.', 'info');
             return;
         }
         const nextStatus = EVENT_STATUSES[currentIdx + 1];
-        Alert.alert(
+        showDialog(
             'Advance Status',
             `Move to: "${nextStatus.label}"?`,
+            'info',
             [
-                { text: 'Cancel', style: 'cancel' },
+                { label: 'Cancel', style: 'cancel', onPress: () => { } },
                 {
-                    text: 'Confirm', onPress: async () => {
+                    label: 'Confirm', onPress: async () => {
                         await advanceEventStatus(event.id, nextStatus.key, user!.id, role === 'admin');
-                        loadEvents();
+                        try { await sync(); } catch (e) { }
+                        DeviceEventEmitter.emit('db_synced');
+                    }
+                }
+            ]
+        );
+    };
+
+    const handleDeleteEvent = async (event: Event) => {
+        showDialog(
+            'Delete Camp',
+            `Are you sure you want to delete "${event.title}"?`,
+            'warning',
+            [
+                { label: 'Cancel', style: 'cancel', onPress: () => { } },
+                {
+                    label: 'Delete',
+                    style: 'destructive',
+                    onPress: async () => {
+                        const success = await deleteEvent(event.id, user!.id, role === 'admin');
+                        if (success) {
+                            try { await sync(); } catch (e) { }
+                            DeviceEventEmitter.emit('db_synced');
+                        } else {
+                            showDialog('Permission Denied', 'You can only delete camps you created.', 'error');
+                        }
                     }
                 }
             ]
@@ -184,16 +220,24 @@ export default function CampManagerScreen() {
                                 >
                                     <Text style={[styles.advanceBtnText, { color: '#1C1C1E' }]}>Edit</Text>
                                 </TouchableOpacity>
+
                                 <TouchableOpacity
-                                    style={styles.advanceBtn}
+                                    style={[styles.advanceBtn, { marginRight: 8 }]}
                                     onPress={() => handleAdvanceStatus(item)}
                                 >
                                     <Text style={styles.advanceBtnText}>Advance</Text>
                                     <ArrowRight size={14} color="#FFFFFF" />
                                 </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={[styles.advanceBtn, { backgroundColor: '#FF3B30', paddingHorizontal: 10 }]}
+                                    onPress={() => handleDeleteEvent(item)}
+                                >
+                                    <Trash2 size={16} color="#FFFFFF" />
+                                </TouchableOpacity>
                             </>
                         )}
-                        <ChevronRight size={18} color="#C7C7CC" />
+                        {isDonorOrVolunteer && <ChevronRight size={18} color="#C7C7CC" />}
                     </View>
                 </View>
             </TouchableOpacity>

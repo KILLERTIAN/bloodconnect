@@ -3,14 +3,18 @@ import { execute, query } from './database';
 export interface HelplineRequest {
     id: number;
     patient_name: string;
+    patient_age?: number;
     blood_group: string;
     blood_component: string;
     units_required: number;
     hospital: string;
+    ward_details?: string;
     city: string;
+    address?: string;
     attender_name: string;
     attender_contact: string;
     urgency: 'critical' | 'urgent' | 'normal';
+    case_type: 'emergency' | 'scheduled';
     required_till: string;
     is_live: number;
     status: 'open' | 'in_progress' | 'fulfilled' | 'closed';
@@ -65,19 +69,22 @@ export async function getLiveHelplines(): Promise<HelplineRequest[]> {
 }
 
 export async function createHelplineRequest(data: Partial<HelplineRequest> & { created_by: number }): Promise<number> {
-    const result = await execute(`
+    const newId = Date.now();
+    await execute(`
         INSERT INTO helpline_requests (
-            patient_name, blood_group, blood_component, units_required,
-            hospital, city, attender_name, attender_contact,
-            urgency, required_till, created_by, notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            id, patient_name, patient_age, blood_group, blood_component, units_required,
+            hospital, ward_details, city, address, attender_name, attender_contact,
+            urgency, case_type, required_till, created_by, notes, is_live, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
-        data.patient_name, data.blood_group, data.blood_component || 'whole_blood',
-        data.units_required, data.hospital, data.city, data.attender_name || '',
-        data.attender_contact, data.urgency || 'normal', data.required_till || '',
-        data.created_by, data.notes || ''
+        newId,
+        data.patient_name, data.patient_age || null, data.blood_group, data.blood_component || 'whole_blood',
+        data.units_required, data.hospital, data.ward_details || '', data.city, data.address || '',
+        data.attender_name || '', data.attender_contact, data.urgency || 'normal',
+        data.case_type || 'emergency', data.required_till || '',
+        data.created_by, data.notes || '', data.is_live || 0, data.status || 'open'
     ]);
-    return Number(result.lastInsertRowid);
+    return newId;
 }
 
 export async function makeHelplineLive(id: number): Promise<void> {
@@ -90,9 +97,9 @@ export async function makeHelplineLive(id: number): Promise<void> {
 }
 
 export async function autoAssignVolunteers(helplineId: number): Promise<void> {
-    // Get all active volunteers
-    const volunteers = await query(
-        `SELECT u.id, COUNT(ha.id) as assignment_count
+    // 1. Get the minimum assignment count among active volunteers
+    const minCountResult = await query(
+        `SELECT COUNT(ha.id) as assignment_count
          FROM users u
          LEFT JOIN helpline_assignments ha ON u.id = ha.volunteer_id AND ha.status = 'active'
          WHERE u.role IN ('volunteer', 'helpline') AND u.is_active = 1
@@ -101,9 +108,26 @@ export async function autoAssignVolunteers(helplineId: number): Promise<void> {
          LIMIT 1`
     );
 
-    if (volunteers.rows.length === 0) return;
+    if (minCountResult.rows.length === 0) return;
+    const minCount = (minCountResult.rows[0] as any).assignment_count;
 
-    const volunteer = volunteers.rows[0] as any;
+    // 2. Get all active volunteers with that minimum count
+    const candidatesResult = await query(
+        `SELECT u.id
+         FROM users u
+         LEFT JOIN helpline_assignments ha ON u.id = ha.volunteer_id AND ha.status = 'active'
+         WHERE u.role IN ('volunteer', 'helpline') AND u.is_active = 1
+         GROUP BY u.id
+         HAVING COUNT(ha.id) = ?`,
+        [minCount]
+    );
+
+    if (candidatesResult.rows.length === 0) return;
+
+    // 3. Randomly select one candidate
+    const candidates = candidatesResult.rows as any[];
+    const volunteer = candidates[Math.floor(Math.random() * candidates.length)];
+
     await execute(
         'INSERT INTO helpline_assignments (helpline_id, volunteer_id) VALUES (?, ?)',
         [helplineId, volunteer.id]
@@ -126,6 +150,17 @@ export async function autoAssignVolunteers(helplineId: number): Promise<void> {
     }
 }
 
+export async function deleteHelplineRequest(id: number, userId: number, isAdmin: boolean): Promise<boolean> {
+    const res = await query('SELECT created_by FROM helpline_requests WHERE id = ?', [id]);
+    if (res.rows.length === 0) return false;
+    const req = res.rows[0] as any;
+
+    if (!isAdmin && req.created_by !== userId) return false;
+
+    await execute('DELETE FROM helpline_requests WHERE id = ?', [id]);
+    return true;
+}
+
 export async function getAssignedHelplines(volunteerId: number): Promise<any[]> {
     const result = await query(`
         SELECT h.*, ha.assigned_at, ha.status as assignment_status
@@ -137,18 +172,44 @@ export async function getAssignedHelplines(volunteerId: number): Promise<any[]> 
     return result.rows as any[];
 }
 
+const BLOOD_COMPATIBILITY: Record<string, string[]> = {
+    'A+': ['A+', 'A-', 'O+', 'O-'],
+    'A-': ['A-', 'O-'],
+    'B+': ['B+', 'B-', 'O+', 'O-'],
+    'B-': ['B-', 'O-'],
+    'AB+': ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'],
+    'AB-': ['A-', 'B-', 'AB-', 'O-'],
+    'O+': ['O+', 'O-'],
+    'O-': ['O-']
+};
+
 // Donor database
 export async function getDonors(filters?: {
     blood_group?: string;
     city?: string;
     available_only?: boolean;
+    gender?: string;
+    min_age?: number;
+    max_age?: number;
+    search_query?: string;
 }): Promise<Donor[]> {
     let sql = 'SELECT * FROM donors WHERE 1=1';
     const args: any[] = [];
 
-    if (filters?.blood_group) { sql += ' AND blood_group = ?'; args.push(filters.blood_group); }
+    if (filters?.blood_group) {
+        const compatibleGroups = BLOOD_COMPATIBILITY[filters.blood_group] || [filters.blood_group];
+        sql += ` AND blood_group IN (${compatibleGroups.map(() => '?').join(',')})`;
+        args.push(...compatibleGroups);
+    }
     if (filters?.city) { sql += ' AND city LIKE ?'; args.push(`%${filters.city}%`); }
     if (filters?.available_only) { sql += ' AND is_available = 1'; }
+    if (filters?.gender) { sql += ' AND gender = ?'; args.push(filters.gender); }
+    if (filters?.min_age) { sql += ' AND age >= ?'; args.push(filters.min_age); }
+    if (filters?.max_age) { sql += ' AND age <= ?'; args.push(filters.max_age); }
+    if (filters?.search_query) {
+        sql += ' AND (name LIKE ? OR phone LIKE ? OR email LIKE ?)';
+        args.push(`%${filters.search_query}%`, `%${filters.search_query}%`, `%${filters.search_query}%`);
+    }
 
     sql += ' ORDER BY last_donation_date ASC, city ASC';
     const result = await query(sql, args);
@@ -161,28 +222,33 @@ export async function getDonorsForHelpline(helplineId: number): Promise<Donor[]>
     if (hResult.rows.length === 0) return [];
     const h = hResult.rows[0] as any;
 
+    const compatibleGroups = BLOOD_COMPATIBILITY[h.blood_group] || [h.blood_group];
+
     // Get compatible donors sorted by location, blood group match, last donation date
     const result = await query(`
         SELECT * FROM donors
-        WHERE blood_group = ? AND is_available = 1
+        WHERE blood_group IN (${compatibleGroups.map(() => '?').join(',')}) AND is_available = 1
         ORDER BY 
             CASE WHEN city = ? THEN 0 ELSE 1 END,
+            CASE WHEN blood_group = ? THEN 0 ELSE 1 END,
             last_donation_date ASC
         LIMIT 50
-    `, [h.blood_group, h.city]);
+    `, [...compatibleGroups, h.city, h.blood_group]);
     return result.rows as unknown as Donor[];
 }
 
 export async function addDonor(data: Partial<Donor> & { event_id?: number }): Promise<number> {
-    const result = await execute(`
-        INSERT INTO donors (name, phone, email, blood_group, city, location, last_donation_date, gender, age, event_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    const newId = Date.now();
+    await execute(`
+        INSERT INTO donors (id, name, phone, email, blood_group, city, location, last_donation_date, gender, age, event_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
+        newId,
         data.name, data.phone, data.email || '', data.blood_group,
         data.city || '', data.location || '', data.last_donation_date || '',
         data.gender || '', data.age || 0, data.event_id || null
     ]);
-    return Number(result.lastInsertRowid);
+    return newId;
 }
 
 export async function updateDonorAfterDonation(donorId: number, donationDate: string): Promise<void> {
