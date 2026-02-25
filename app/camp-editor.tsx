@@ -1,5 +1,6 @@
 import { useAuth } from '@/context/AuthContext';
 import { useDialog } from '@/context/DialogContext';
+import { useNetwork } from '@/context/NetworkContext';
 import { getTransformedUrl, uploadImage } from '@/lib/cloudinary.service';
 import { sync } from '@/lib/database';
 import { createEvent, Event, getEventById, updateEvent } from '@/lib/events.service';
@@ -30,6 +31,7 @@ export default function CampEditorScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { showDialog } = useDialog();
+    const { isOnline, queueImageUpload, showBanner } = useNetwork();
 
     const [loading, setLoading] = useState(!!id);
     const [submitting, setSubmitting] = useState(false);
@@ -80,20 +82,31 @@ export default function CampEditorScreen() {
             mediaTypes: ['images'],
             allowsEditing: true,
             aspect: [16, 9],
-            quality: 0.6, // Compressed for web
+            quality: 0.6,
         });
 
         if (!result.canceled) {
-            setUploading(true);
-            try {
-                const cloudUrl = await uploadImage(result.assets[0].uri);
-                setForm(prev => ({ ...prev, image_url: cloudUrl }));
-            } catch (e) {
-                console.error("Error uploading image:", e);
-                showDialog('Upload Failed', 'Could not upload image to cloud. Using local path instead.', 'warning');
-                setForm(prev => ({ ...prev, image_url: result.assets[0].uri }));
-            } finally {
-                setUploading(false);
+            const localUri = result.assets[0].uri;
+            // Always set the local URI immediately for instant preview
+            setForm(prev => ({ ...prev, image_url: localUri }));
+
+            if (isOnline) {
+                // Try uploading in background
+                setUploading(true);
+                try {
+                    const cloudUrl = await uploadImage(localUri);
+                    setForm(prev => ({ ...prev, image_url: cloudUrl }));
+                    showBanner('info', 'Image uploaded to cloud', 3000);
+                } catch (e) {
+                    console.error('Error uploading image:', e);
+                    // Keep local URI, it will be queued on save
+                    showBanner('info', 'Image saved locally. Will upload later.', 4000);
+                } finally {
+                    setUploading(false);
+                }
+            } else {
+                // Offline: keep local URI, will be queued on event save
+                showBanner('info', 'Offline — image saved locally. Will upload when online.', 4000);
             }
         }
     };
@@ -109,17 +122,22 @@ export default function CampEditorScreen() {
             if (id) {
                 const success = await updateEvent(Number(id), form, user!.id, role === 'admin');
                 if (success) {
-                    // Sync with Turso after update
-                    try {
-                        await sync();
-                        console.log('✅ Camp updated and synced with Turso');
-                    } catch (syncError) {
-                        console.log('⚠️ Camp updated locally, will sync when online');
+                    if (isOnline) {
+                        try {
+                            await sync();
+                            console.log('✅ Camp updated and synced with Turso');
+                        } catch (syncError) {
+                            console.log('⚠️ Sync failed, will retry later');
+                        }
+                        showDialog('Success', 'Camp updated successfully', 'success', [
+                            { label: 'OK', onPress: () => { DeviceEventEmitter.emit('db_synced'); router.back(); } }
+                        ]);
+                    } else {
+                        console.log('📱 Camp updated locally (offline)');
+                        showDialog('Success', 'Updated event locally. Will sync when back online.', 'success', [
+                            { label: 'OK', onPress: () => { DeviceEventEmitter.emit('db_synced'); router.back(); } }
+                        ]);
                     }
-                    DeviceEventEmitter.emit('db_synced');
-                    showDialog('Success', 'Camp updated successfully', 'success', [
-                        { label: 'OK', onPress: () => router.back() }
-                    ]);
                 } else {
                     showDialog('Error', 'You do not have permission to edit this camp', 'error');
                 }
@@ -132,19 +150,27 @@ export default function CampEditorScreen() {
 
                 console.log('✅ Camp created with ID:', newId);
 
-                // Sync with Turso after creation
-                try {
-                    await sync();
-                    console.log('✅ Camp synced with Turso cloud database');
-                } catch (syncError) {
-                    console.log('⚠️ Camp saved locally, will sync when online');
+                // If the image is still a local URI, queue it for upload
+                if (form.image_url && !form.image_url.startsWith('http')) {
+                    queueImageUpload(form.image_url, newId, 'image_url');
                 }
 
-                DeviceEventEmitter.emit('db_synced');
-
-                showDialog('Success', 'Camp created successfully! It will appear in the events feed.', 'success', [
-                    { label: 'OK', onPress: () => router.back() }
-                ]);
+                if (isOnline) {
+                    try {
+                        await sync();
+                        console.log('✅ Camp synced with Turso cloud database');
+                    } catch (syncError) {
+                        console.log('⚠️ Sync failed, will retry later');
+                    }
+                    showDialog('Success', 'Camp created successfully! It will appear in the events feed.', 'success', [
+                        { label: 'OK', onPress: () => { DeviceEventEmitter.emit('db_synced'); router.back(); } }
+                    ]);
+                } else {
+                    console.log('📱 Camp created locally (offline)');
+                    showDialog('Success', 'Event saved locally. Will publish when back online.', 'success', [
+                        { label: 'OK', onPress: () => { DeviceEventEmitter.emit('db_synced'); router.back(); } }
+                    ]);
+                }
             }
         } catch (e: any) {
             console.error('❌ Camp save error:', e);

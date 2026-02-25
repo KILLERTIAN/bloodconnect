@@ -185,8 +185,18 @@ export default function OutreachScreen() {
                         </View>
                     </View>
                     <View style={styles.headerActions}>
-                        <TouchableOpacity style={styles.headerBtn} onPress={() => setShowFilterModal(true)}>
-                            <Filter size={20} color="#FFFFFF" />
+                        <TouchableOpacity
+                            style={[styles.headerBtn, filterType && { backgroundColor: '#FFFFFF' }]}
+                            onPress={() => {
+                                showDialog('Filter by Type', 'Select a lead type to view.', 'info', [
+                                    { label: 'All Types', onPress: () => setFilterType(null) },
+                                    { label: 'Blood Camp', onPress: () => setFilterType('camp') },
+                                    { label: 'Awareness Session', onPress: () => setFilterType('awareness_session') },
+                                    { label: 'Cancel', style: 'cancel', onPress: () => { } }
+                                ]);
+                            }}
+                        >
+                            <Filter size={20} color={filterType ? '#FF9500' : '#FFFFFF'} />
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.headerBtn} onPress={() => setShowAddModal(true)}>
                             <Plus size={20} color="#FFFFFF" strokeWidth={3} />

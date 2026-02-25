@@ -1,6 +1,6 @@
 import { useAuth } from '@/context/AuthContext';
 import { Tabs } from 'expo-router';
-import { BarChart2, Building2, Calendar, LayoutGrid, MapPin, Plus, Radio, UserCircle } from 'lucide-react-native';
+import { Briefcase, Building2, Calendar, LayoutGrid, MapPin, Plus, Radio, UserCircle } from 'lucide-react-native';
 import React from 'react';
 import { Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useTheme } from 'react-native-paper';
@@ -116,7 +116,7 @@ export default function TabLayout() {
         name="hr-dashboard"
         options={{
           title: 'HR',
-          tabBarIcon: ({ color }) => <BarChart2 size={24} color={color} />,
+          tabBarIcon: ({ color }) => <Briefcase size={24} color={color} />,
           href: (isAdmin || isHR) ? undefined : null,
         }}
       />

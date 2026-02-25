@@ -1,4 +1,5 @@
 import { execute, query } from './database';
+import { generateUniqueId } from './id';
 
 export interface Event {
     id: number;
@@ -71,7 +72,7 @@ export async function getEventById(id: number): Promise<Event | null> {
 }
 
 export async function createEvent(data: Partial<Event> & { created_by: number }): Promise<number> {
-    const newId = Date.now();
+    const newId = generateUniqueId();
     await execute(`
         INSERT INTO events (
             id, title, organization_name, poc_name, poc_phone, poc_email,

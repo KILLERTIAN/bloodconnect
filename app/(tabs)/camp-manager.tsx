@@ -1,3 +1,4 @@
+import NetworkBanner from '@/components/NetworkBanner';
 import { useAuth } from '@/context/AuthContext';
 import { useDialog } from '@/context/DialogContext';
 import { manualSync, sync } from '@/lib/database';
@@ -267,6 +268,8 @@ export default function CampManagerScreen() {
                     </TouchableOpacity>
                 )}
             </LinearGradient>
+
+            <NetworkBanner />
 
             {/* Stats Bar - Only for Managers */}
             {!isDonorOrVolunteer && (

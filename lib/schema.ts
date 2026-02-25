@@ -162,25 +162,25 @@ export async function initializeSchema(db: SQLiteDatabase) {
         CREATE TABLE IF NOT EXISTS helpline_requests(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             patient_name TEXT NOT NULL,
-            patient_age INTEGER,
             blood_group TEXT NOT NULL,
             blood_component TEXT DEFAULT 'whole_blood',
             units_required INTEGER NOT NULL,
             hospital TEXT NOT NULL,
-            ward_details TEXT,
             city TEXT NOT NULL,
-            address TEXT,
             attender_name TEXT,
             attender_contact TEXT NOT NULL,
             urgency TEXT DEFAULT 'normal' CHECK(urgency IN('critical', 'urgent', 'normal')),
-            case_type TEXT DEFAULT 'emergency' CHECK(case_type IN('emergency', 'scheduled')),
             required_till TEXT,
             is_live INTEGER DEFAULT 0,
             status TEXT DEFAULT 'open' CHECK(status IN('open', 'in_progress', 'fulfilled', 'closed')),
             created_by INTEGER REFERENCES users(id),
             notes TEXT,
             created_at TEXT DEFAULT(datetime('now')),
-            updated_at TEXT DEFAULT(datetime('now'))
+            updated_at TEXT DEFAULT(datetime('now')),
+            patient_age INTEGER,
+            ward_details TEXT,
+            address TEXT,
+            case_type TEXT DEFAULT 'emergency' CHECK(case_type IN('emergency', 'scheduled'))
         );
     `);
 

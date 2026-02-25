@@ -129,7 +129,7 @@ export default function EventDetailsScreen() {
         <View style={styles.container}>
             <StatusBar barStyle="light-content" />
 
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent} bounces={false}>
                 {/* Hero Image Section */}
                 <View style={styles.heroContainer}>
                     <Image source={{ uri: imageUrl }} style={styles.heroImage} />
@@ -301,29 +301,28 @@ export default function EventDetailsScreen() {
 
             {/* Bottom Sticky Action */}
             <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
-                <View style={{ flexDirection: 'row', gap: 12 }}>
+                <View style={styles.actionRow}>
                     {(role === 'admin' || role === 'manager' || role === 'helpline') && (
                         <TouchableOpacity
-                            style={[styles.joinButton, { flex: 1 }]}
+                            style={styles.secondaryBtn}
+                            activeOpacity={0.8}
                             onPress={() => router.push({ pathname: '/log-donors', params: { eventId: camp.id, city: camp.city } })}
                         >
-                            <View style={[styles.gradientBtn, { backgroundColor: '#1C1C1E' }]}>
-                                <CheckSquare size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-                                <Text style={styles.buttonText}>Log Donors</Text>
-                            </View>
+                            <CheckSquare size={18} color="#FFFFFF" />
+                            <Text style={styles.secondaryBtnText}>Log Donors</Text>
                         </TouchableOpacity>
                     )}
                     <TouchableOpacity
-                        style={[styles.joinButton, { flex: 1.5 }]}
+                        style={styles.primaryBtn}
                         activeOpacity={0.8}
                     >
                         <LinearGradient
-                            colors={['#FF3B30', '#FF2D55']}
+                            colors={['#FF3B30', '#E63946']}
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 1 }}
-                            style={styles.gradientBtn}
+                            style={styles.primaryBtnGradient}
                         >
-                            <Text style={styles.buttonText}>Register for Event</Text>
+                            <Text style={styles.primaryBtnText}>Register for Event</Text>
                         </LinearGradient>
                     </TouchableOpacity>
                 </View>
@@ -638,20 +637,41 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.05,
         shadowRadius: 15,
     },
-    joinButton: {
-        borderRadius: 20,
+    actionRow: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    secondaryBtn: {
+        flex: 1,
+        height: 56,
+        backgroundColor: '#1C1C1E',
+        borderRadius: 28,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 8,
+    },
+    secondaryBtnText: {
+        color: '#FFFFFF',
+        fontSize: 15,
+        fontWeight: '800',
+    },
+    primaryBtn: {
+        flex: 1.5,
+        height: 56,
+        borderRadius: 28,
         overflow: 'hidden',
     },
-    gradientBtn: {
-        height: 64,
+    primaryBtnGradient: {
+        flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
         flexDirection: 'row',
     },
-    buttonText: {
+    primaryBtnText: {
         color: '#FFFFFF',
-        fontSize: 18,
+        fontSize: 16,
         fontWeight: '900',
-        letterSpacing: 0.5,
+        letterSpacing: 0.3,
     },
 });

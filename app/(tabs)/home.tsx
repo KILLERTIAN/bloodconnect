@@ -1,3 +1,4 @@
+import NetworkBanner from '@/components/NetworkBanner';
 import { getDonorAvatar } from '@/constants/AvatarMapping';
 import { useAuth } from '@/context/AuthContext';
 import { sync } from '@/lib/database';
@@ -197,6 +198,7 @@ export default function DashboardScreen() {
             return (
                 <View style={styles.donorContainer}>
                     {renderHeader(config.title, config.sub, userAvatar)}
+                    <NetworkBanner />
 
                     <Animated.View
                         entering={FadeInDown.delay(200).duration(800)}
@@ -369,6 +371,7 @@ export default function DashboardScreen() {
             return (
                 <View style={styles.volunteerContainer}>
                     {renderHeader(config.title, config.sub, userAvatar)}
+                    <NetworkBanner />
                     <View style={styles.missionContainer}>
                         <Text style={styles.sectionTitle}>Your Active Missions</Text>
                         <TouchableOpacity activeOpacity={0.9} onPress={() => router.push('/request-details')}>
@@ -458,13 +461,14 @@ export default function DashboardScreen() {
                             ))}
                         </View>
                     </View>
-                </View>
+                </View >
             );
         }
 
         return (
             <View style={styles.adminContainer}>
                 {renderHeader(config.title, config.sub, userAvatar)}
+                <NetworkBanner />
                 <TouchableOpacity style={styles.searchBar} activeOpacity={0.9}>
                     <Search size={20} color="#8E8E93" />
                     <Text style={styles.searchText}>Search cases, donors or hubs...</Text>
@@ -567,26 +571,6 @@ export default function DashboardScreen() {
                                 </TouchableOpacity>
                             ))}
                     </View>
-                </View>
-
-                <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionTitle}>Live Activity Feed</Text>
-                        <TouchableOpacity><Text style={styles.seeAll}>View All</Text></TouchableOpacity>
-                    </View>
-                    <ScrollView contentContainerStyle={styles.feedScroll}>
-                        {[1, 2, 3].map(i => (
-                            <View key={i} style={styles.feedItem}>
-                                <View style={styles.feedLine} />
-                                <View style={styles.feedDot} />
-                                <View style={styles.feedContent}>
-                                    <Text style={styles.feedUser}>New donation at City Hub</Text>
-                                    <Text style={styles.feedTime}>2 mins ago • O+ Positive</Text>
-                                </View>
-                                <ChevronRight size={16} color="#C7C7CC" />
-                            </View>
-                        ))}
-                    </ScrollView>
                 </View>
             </View>
         );
@@ -883,7 +867,7 @@ const styles = StyleSheet.create({
         marginTop: 2,
     },
     scrollContent: {
-        paddingBottom: 32,
+        paddingBottom: 120,
     },
     header: {
         flexDirection: 'row',

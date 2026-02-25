@@ -1,4 +1,5 @@
 import { execute, query } from './database';
+import { generateUniqueId } from './id';
 
 export interface HelplineRequest {
     id: number;
@@ -69,7 +70,7 @@ export async function getLiveHelplines(): Promise<HelplineRequest[]> {
 }
 
 export async function createHelplineRequest(data: Partial<HelplineRequest> & { created_by: number }): Promise<number> {
-    const newId = Date.now();
+    const newId = generateUniqueId();
     await execute(`
         INSERT INTO helpline_requests (
             id, patient_name, patient_age, blood_group, blood_component, units_required,
@@ -202,7 +203,9 @@ export async function getDonors(filters?: {
         args.push(...compatibleGroups);
     }
     if (filters?.city) { sql += ' AND city LIKE ?'; args.push(`%${filters.city}%`); }
-    if (filters?.available_only) { sql += ' AND is_available = 1'; }
+    if (filters?.available_only) {
+        sql += " AND is_available = 1 AND (last_donation_date IS NULL OR last_donation_date = '' OR date(last_donation_date) <= date('now', '-90 days'))";
+    }
     if (filters?.gender) { sql += ' AND gender = ?'; args.push(filters.gender); }
     if (filters?.min_age) { sql += ' AND age >= ?'; args.push(filters.min_age); }
     if (filters?.max_age) { sql += ' AND age <= ?'; args.push(filters.max_age); }
@@ -222,12 +225,17 @@ export async function getDonorsForHelpline(helplineId: number): Promise<Donor[]>
     if (hResult.rows.length === 0) return [];
     const h = hResult.rows[0] as any;
 
+    if (!h.blood_group || h.blood_group === 'NULL') return [];
+
     const compatibleGroups = BLOOD_COMPATIBILITY[h.blood_group] || [h.blood_group];
 
     // Get compatible donors sorted by location, blood group match, last donation date
+    // ONLY available donors (is_available = 1 AND last_donation_date is either null, empty, or >90 days ago)
     const result = await query(`
         SELECT * FROM donors
-        WHERE blood_group IN (${compatibleGroups.map(() => '?').join(',')}) AND is_available = 1
+        WHERE blood_group IN (${compatibleGroups.map(() => '?').join(',')}) 
+          AND is_available = 1
+          AND (last_donation_date IS NULL OR last_donation_date = '' OR date(last_donation_date) <= date('now', '-90 days'))
         ORDER BY 
             CASE WHEN city = ? THEN 0 ELSE 1 END,
             CASE WHEN blood_group = ? THEN 0 ELSE 1 END,
@@ -238,7 +246,7 @@ export async function getDonorsForHelpline(helplineId: number): Promise<Donor[]>
 }
 
 export async function addDonor(data: Partial<Donor> & { event_id?: number }): Promise<number> {
-    const newId = Date.now();
+    const newId = generateUniqueId();
     await execute(`
         INSERT INTO donors (id, name, phone, email, blood_group, city, location, last_donation_date, gender, age, event_id)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)

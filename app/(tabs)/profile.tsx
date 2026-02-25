@@ -150,7 +150,7 @@ export default function ProfileScreen() {
     return (
         <View style={styles.container}>
             <StatusBar barStyle="light-content" />
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent} bounces={false}>
 
                 {/* Immersive Header Section */}
                 <View style={styles.heroSection}>

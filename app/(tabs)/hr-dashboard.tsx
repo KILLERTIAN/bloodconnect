@@ -4,6 +4,7 @@ import { useDialog } from '@/context/DialogContext';
 import { getAllUsers } from '@/lib/auth.service';
 import { getManagerStats, getVolunteerStats, setScheduleEditingEnabled } from '@/lib/hr.service';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Bell, ChevronLeft, ChevronRight, Download, Filter, Heart, LogOut, Mail, MessageCircle, MoreHorizontal, Phone, PieChart, Search, Settings, Shield, Star, Target, TrendingUp, Users } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -12,7 +13,8 @@ import {
     DeviceEventEmitter,
     Dimensions,
     RefreshControl, ScrollView,
-    StyleSheet, Switch, Text, TouchableOpacity, View
+    StyleSheet, Switch, Text, TextInput,
+    TouchableOpacity, View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
@@ -45,6 +47,8 @@ export default function HRDashboardScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const [tab, setTab] = useState<Tab>('overview');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [roleFilter, setRoleFilter] = useState('all');
     const [selectedUser, setSelectedUser] = useState<any>(null);
     const [volunteerStats, setVolunteerStats] = useState<any[]>([]);
     const [managerStats, setManagerStats] = useState<any[]>([]);
@@ -109,103 +113,163 @@ export default function HRDashboardScreen() {
         if (!selectedUser) return null;
         const theme = ROLE_THEMES[selectedUser.role] || { color: '#8E8E93', bg: '#F2F2F7' };
 
+        // Create a rich gradient from the primary theme color to a darker shade
+        const primaryColor = theme.color;
+        const gradientColors = [primaryColor, primaryColor + 'CC'] as const;
+
         return (
             <View style={styles.fullScreenReport}>
-                <View style={[styles.reportHeader, { paddingTop: insets.top + 12 }]}>
-                    <TouchableOpacity onPress={() => setSelectedUser(null)} style={styles.backFab}>
-                        <ChevronLeft size={24} color="#1C1C1E" />
-                    </TouchableOpacity>
-                    <Text style={styles.reportTitle}>Member Report</Text>
-                    <TouchableOpacity style={styles.moreFab}>
-                        <MoreHorizontal size={20} color="#1C1C1E" />
-                    </TouchableOpacity>
-                </View>
-
-                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20 }}>
-                    <View style={styles.reportProfileCard}>
-                        <View style={styles.reportAvatarWrapper}>
-                            <Image
-                                source={{ uri: selectedUser.avatar_url || getDonorAvatar(selectedUser.name) }}
-                                style={{ width: 110, height: 110, borderRadius: 55 }}
-                            />
-                            <View style={[styles.statusIndicator, { backgroundColor: '#34C759' }]} />
-                        </View>
-                        <Text style={styles.reportName}>{selectedUser.name}</Text>
-                        <View style={[styles.reportBadge, { backgroundColor: theme.bg }]}>
-                            <Text style={[styles.reportBadgeText, { color: theme.color }]}>{selectedUser.role.toUpperCase()}</Text>
-                        </View>
-
-                        <View style={styles.contactRow}>
-                            <TouchableOpacity style={styles.contactCircle}>
-                                <Phone size={20} color="#1C1C1E" />
+                <ScrollView
+                    showsVerticalScrollIndicator={false}
+                    style={{ flex: 1 }}
+                    contentContainerStyle={{ paddingBottom: 80 }}
+                    bounces={false}
+                >
+                    <LinearGradient
+                        colors={gradientColors}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={[styles.reportHeaderHero, { paddingTop: insets.top + 10 }]}
+                    >
+                        <View style={styles.reportHeader}>
+                            <TouchableOpacity onPress={() => setSelectedUser(null)} style={styles.backFab}>
+                                <ChevronLeft size={22} color="#1C1C1E" />
                             </TouchableOpacity>
-                            <TouchableOpacity style={styles.contactCircle}>
-                                <MessageCircle size={20} color="#1C1C1E" />
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.contactCircle}>
-                                <Mail size={20} color="#1C1C1E" />
+                            <Text style={[styles.reportTitle, { color: '#FFFFFF' }]}>Member Profile</Text>
+                            <TouchableOpacity style={styles.moreFab}>
+                                <MoreHorizontal size={22} color="#1C1C1E" />
                             </TouchableOpacity>
                         </View>
-                    </View>
 
-                    <View style={styles.metricsRowGroup}>
-                        <View style={styles.metricSquare}>
-                            <Text style={styles.metricSquareVal}>{selectedUser.events_participated || 0}</Text>
-                            <Text style={styles.metricSquareLab}>Total Events</Text>
+                        <View style={styles.heroProfileInfo}>
+                            <View style={styles.reportAvatarWrapperHero}>
+                                <Image
+                                    source={{ uri: selectedUser.avatar_url || getDonorAvatar(selectedUser.name) }}
+                                    style={styles.reportAvatarHero}
+                                />
+                                {/* Unified, sleeker online/verify badge */}
+                                <View style={[styles.verifyBadgeHero, { backgroundColor: '#34C759' }]}>
+                                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#FFF' }} />
+                                </View>
+                            </View>
+                            <Text style={styles.reportNameHero} numberOfLines={1}>{selectedUser.name}</Text>
+                            <View style={[styles.reportBadgeHero, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                                <Text style={[styles.reportBadgeTextHero, { color: '#FFFFFF' }]}>{selectedUser.role.toUpperCase()}</Text>
+                            </View>
                         </View>
-                        <View style={styles.metricSquare}>
-                            <Text style={[styles.metricSquareVal, { color: '#E63946' }]}>{selectedUser.attended_events || 0}</Text>
-                            <Text style={styles.metricSquareLab}>Attended</Text>
-                        </View>
-                        <View style={styles.metricSquare}>
-                            <Text style={[styles.metricSquareVal, { color: '#34C759' }]}>
-                                {Math.min((selectedUser.attended_events / (selectedUser.events_participated || 1)) * 100, 100).toFixed(0)}%
-                            </Text>
-                            <Text style={styles.metricSquareLab}>Yield Rate</Text>
-                        </View>
-                    </View>
+                    </LinearGradient>
 
-                    <Text style={styles.sectionHeaderTitle}>Efficiency Analysis</Text>
-                    <View style={styles.ratingOverview}>
-                        <View style={styles.ratingCircle}>
-                            <Text style={styles.ratingBigText}>4.8</Text>
-                            <Text style={styles.ratingSmallText}>Avg Performance</Text>
+                    <View style={{ padding: 20, marginTop: -45, zIndex: 10, elevation: 10 }}>
+                        <View style={styles.contactCardRound}>
+                            <TouchableOpacity style={styles.contactItemBox}>
+                                <View style={[styles.contactCircleIcon, { backgroundColor: '#F0F8FF' }]}>
+                                    <Phone size={18} color="#007AFF" />
+                                </View>
+                                <Text style={styles.contactItemText}>Call</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity style={styles.contactItemBox}>
+                                <View style={[styles.contactCircleIcon, { backgroundColor: '#F0FFF4' }]}>
+                                    <MessageCircle size={18} color="#34C759" />
+                                </View>
+                                <Text style={styles.contactItemText}>Chat</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity style={styles.contactItemBox}>
+                                <View style={[styles.contactCircleIcon, { backgroundColor: '#FFF0F0' }]}>
+                                    <Mail size={18} color="#E63946" />
+                                </View>
+                                <Text style={styles.contactItemText}>Email</Text>
+                            </TouchableOpacity>
                         </View>
-                        <View style={styles.ratingBreakdown}>
-                            {[
-                                { lab: 'Reliability', val: 92, color: '#34C759' },
-                                { lab: 'Activity', val: 78, color: '#FF9500' },
-                                { lab: 'Efficiency', val: 85, color: '#E63946' }
-                            ].map((item, idx) => (
-                                <View key={idx} style={styles.ratingBarRow}>
-                                    <View style={{ flex: 1 }}>
-                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                                            <Text style={styles.ratingBarLab}>{item.lab}</Text>
-                                            <Text style={styles.ratingBarValText}>{item.val}%</Text>
-                                        </View>
-                                        <View style={styles.ratingBarBg}>
-                                            <View style={[styles.ratingBarFill, { width: `${item.val}%`, backgroundColor: item.color }]} />
-                                        </View>
+
+                        <Text style={styles.sectionHeaderTitle}>Performance</Text>
+                        <View style={styles.metricsRowGroup}>
+                            <View style={styles.metricSquare}>
+                                <View style={styles.metricSquareHeader}>
+                                    <View style={[styles.metricSquareIcon, { backgroundColor: '#F0F8FF' }]}>
+                                        <Target size={16} color="#007AFF" />
                                     </View>
                                 </View>
-                            ))}
+                                <Text style={styles.metricSquareVal}>{selectedUser.events_participated || 0}</Text>
+                                <Text style={styles.metricSquareLab}>Total Events</Text>
+                            </View>
+                            <View style={styles.metricSquare}>
+                                <View style={styles.metricSquareHeader}>
+                                    <View style={[styles.metricSquareIcon, { backgroundColor: '#FFF0F0' }]}>
+                                        <Heart size={16} color="#E63946" />
+                                    </View>
+                                </View>
+                                <Text style={styles.metricSquareVal}>{selectedUser.attended_events || 0}</Text>
+                                <Text style={styles.metricSquareLab}>Attended</Text>
+                            </View>
+                            <View style={styles.metricSquare}>
+                                <View style={styles.metricSquareHeader}>
+                                    <View style={[styles.metricSquareIcon, { backgroundColor: '#F0FFF4' }]}>
+                                        <TrendingUp size={16} color="#34C759" />
+                                    </View>
+                                </View>
+                                <Text style={styles.metricSquareVal}>
+                                    {Math.min((selectedUser.attended_events / (selectedUser.events_participated || 1)) * 100, 100).toFixed(0)}%
+                                </Text>
+                                <Text style={styles.metricSquareLab}>Yield Rate</Text>
+                            </View>
                         </View>
-                    </View>
 
-                    <TouchableOpacity style={styles.downloadReportBtn}>
-                        <Download size={20} color="#FFFFFF" />
-                        <Text style={styles.downloadReportBtnText}>Download Full PDF Report</Text>
-                    </TouchableOpacity>
-                    <View style={{ height: 40 }} />
+                        <Text style={[styles.sectionHeaderTitle, { marginTop: 10 }]}>Analysis</Text>
+                        <View style={styles.ratingOverview}>
+                            <View style={styles.ratingCircle}>
+                                <Text style={styles.ratingBigText}>4.8</Text>
+                                <Text style={styles.ratingSmallText}>Avg Score</Text>
+                            </View>
+                            <View style={styles.ratingBreakdown}>
+                                {[
+                                    { lab: 'Reliability', val: 92, color: '#34C759' },
+                                    { lab: 'Activity', val: 78, color: '#FF9500' },
+                                    { lab: 'Efficiency', val: 85, color: '#E63946' }
+                                ].map((item, idx) => (
+                                    <View key={idx} style={styles.ratingBarRow}>
+                                        <View style={{ flex: 1 }}>
+                                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                                                <Text style={styles.ratingBarLab}>{item.lab}</Text>
+                                                <Text style={styles.ratingBarValText}>{item.val}%</Text>
+                                            </View>
+                                            <View style={styles.ratingBarBg}>
+                                                <View style={[styles.ratingBarFill, { width: `${item.val}%`, backgroundColor: item.color }]} />
+                                            </View>
+                                        </View>
+                                    </View>
+                                ))}
+                            </View>
+                        </View>
+
+                        <TouchableOpacity style={styles.downloadReportBtn} activeOpacity={0.8}>
+                            <LinearGradient colors={['#1C1C1E', '#3A3A3C']} style={styles.downloadReportGradient}>
+                                <Download size={18} color="#FFFFFF" />
+                                <Text style={styles.downloadReportBtnText}>Download Final Report</Text>
+                            </LinearGradient>
+                        </TouchableOpacity>
+                    </View>
                 </ScrollView>
             </View>
         );
     };
 
+    const filteredVolunteerStats = volunteerStats.filter(item => {
+        const matchesSearch = item.name?.toLowerCase().includes(searchQuery.toLowerCase()) || item.role?.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesRole = roleFilter === 'all' || item.role === roleFilter;
+        return matchesSearch && matchesRole;
+    });
+
     const renderPersonnelTab = () => (
         <View style={{ gap: 12 }}>
             <Text style={styles.sectionHeaderTitle}>Team Members</Text>
-            {volunteerStats.map(item => (
+            {filteredVolunteerStats.length === 0 ? (
+                <View style={styles.emptyState}>
+                    <Text style={styles.emptyText}>No members found</Text>
+                </View>
+            ) : null}
+            {filteredVolunteerStats.map(item => (
                 <TouchableOpacity key={item.id} style={styles.proCard} onPress={() => setSelectedUser(item)} activeOpacity={0.9}>
                     <View style={styles.proCardHeader}>
                         <View style={styles.avatarContainer}>
@@ -234,7 +298,7 @@ export default function HRDashboardScreen() {
                         </View>
                         <View style={styles.proMetric}>
                             <View style={styles.progressContainer}>
-                                <View style={[styles.progressBar, { width: `${Math.min((item.attended_events / (item.events_participated || 1)) * 100, 100)}%`, backgroundColor: '#E63946' }]} />
+                                <View style={[styles.progressBar, { width: `${Math.min(((item.attended_events || 0) / (item.events_participated || 1)) * 100, 100)}%`, backgroundColor: '#E63946' }]} />
                             </View>
                             <Text style={styles.proMetricLab}>Engagement</Text>
                         </View>
@@ -361,12 +425,31 @@ export default function HRDashboardScreen() {
                         </View>
 
                         <View style={styles.searchFilterRow}>
-                            <View style={styles.searchBar}>
+                            <View style={[styles.searchBar, { flex: 1 }]}>
                                 <Search size={18} color="#8E8E93" />
-                                <Text style={styles.searchPlaceholder}>Search for members...</Text>
+                                <TextInput
+                                    placeholder={roleFilter === 'all' ? "Search for members..." : `Search ${roleFilter}s...`}
+                                    style={styles.ghostInput}
+                                    placeholderTextColor="#8E8E93"
+                                    value={searchQuery}
+                                    onChangeText={setSearchQuery}
+                                    selectionColor="#E63946"
+                                />
                             </View>
-                            <TouchableOpacity style={styles.filterBtn}>
-                                <Filter size={18} color="#1C1C1E" />
+                            <TouchableOpacity
+                                style={[styles.filterBtn, roleFilter !== 'all' && { borderColor: '#E63946', backgroundColor: '#FFEBEA' }]}
+                                onPress={() => {
+                                    showDialog('Filter by Role', 'Select a role to view.', 'info', [
+                                        { label: 'All Roles', onPress: () => setRoleFilter('all') },
+                                        { label: 'Volunteer', onPress: () => setRoleFilter('volunteer') },
+                                        { label: 'Manager', onPress: () => setRoleFilter('manager') },
+                                        { label: 'Outreach', onPress: () => setRoleFilter('outreach') },
+                                        { label: 'Helpline', onPress: () => setRoleFilter('helpline') },
+                                        { label: 'Cancel', style: 'cancel', onPress: () => { } }
+                                    ]);
+                                }}
+                            >
+                                <Filter size={18} color={roleFilter !== 'all' ? '#E63946' : '#1C1C1E'} />
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -438,7 +521,7 @@ export default function HRDashboardScreen() {
                                     {tab === 'roles' && (
                                         <>
                                             <Text style={styles.sectionHeaderTitle}>System Controls</Text>
-                                            {users.map(item => (
+                                            {users.filter(u => u.name?.toLowerCase().includes(searchQuery.toLowerCase()) || u.role?.toLowerCase().includes(searchQuery.toLowerCase())).map(item => (
                                                 <View key={item.id}>{renderControlRow({ item })}</View>
                                             ))}
                                         </>
@@ -496,6 +579,7 @@ const styles = StyleSheet.create({
     searchFilterRow: { flexDirection: 'row', gap: 12 },
     searchBar: { flex: 1, height: 48, backgroundColor: '#F2F2F7', borderRadius: 16, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 12 },
     searchPlaceholder: { fontSize: 14, color: '#8E8E93', fontWeight: '600' },
+    ghostInput: { flex: 1, height: '100%', fontSize: 14, fontWeight: '600', color: '#1C1C1E' },
     filterBtn: { width: 48, height: 48, backgroundColor: '#FFFFFF', borderRadius: 16, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#F2F2F7' },
 
     metricsGrid: { flexDirection: 'row', paddingHorizontal: 20, gap: 16, marginTop: 20 },
@@ -564,14 +648,15 @@ const styles = StyleSheet.create({
 
 
     metricsRowGroup: { flexDirection: 'row', gap: 12, marginBottom: 30 },
-    metricSquare: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 24, padding: 12, alignItems: 'center', gap: 4 },
-    metricSquareVal: { fontSize: 20, fontWeight: '900', color: '#1C1C1E' },
-    metricSquareLab: { fontSize: 10, color: '#8E8E93', fontWeight: '700', textAlign: 'center' },
+    metricSquare: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 24, padding: 16, alignItems: 'center', gap: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 2 },
+    metricSquareHeader: { marginBottom: 6 },
+    metricSquareVal: { fontSize: 22, fontWeight: '900', color: '#1C1C1E', marginBottom: 2 },
+    metricSquareLab: { fontSize: 11, color: '#8E8E93', fontWeight: '700', textAlign: 'center' },
 
-    ratingOverview: { backgroundColor: '#FFFFFF', padding: 20, borderRadius: 32, flexDirection: 'row', alignItems: 'center', gap: 20, marginBottom: 20 },
-    ratingCircle: { width: 90, height: 90, borderRadius: 45, borderWidth: 4, borderColor: '#FFEBEA', justifyContent: 'center', alignItems: 'center' },
-    ratingBigText: { fontSize: 24, fontWeight: '900', color: '#E63946' },
-    ratingSmallText: { fontSize: 9, color: '#8E8E93', fontWeight: '700', textAlign: 'center' },
+    ratingOverview: { backgroundColor: '#FFFFFF', padding: 20, borderRadius: 28, flexDirection: 'row', alignItems: 'center', gap: 20, marginBottom: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 2 },
+    ratingCircle: { width: 80, height: 80, borderRadius: 40, borderWidth: 4, borderColor: '#FFEBEA', justifyContent: 'center', alignItems: 'center' },
+    ratingBigText: { fontSize: 22, fontWeight: '900', color: '#E63946' },
+    ratingSmallText: { fontSize: 9, color: '#8E8E93', fontWeight: '700', textAlign: 'center', marginTop: -2 },
     ratingBreakdown: { flex: 1, gap: 12 },
     ratingBarRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     ratingBarLab: { fontSize: 12, fontWeight: '700', color: '#8E8E93' },
@@ -604,4 +689,22 @@ const styles = StyleSheet.create({
     centered: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 100 },
     emptyState: { alignItems: 'center', paddingVertical: 60, gap: 12 },
     emptyText: { fontSize: 16, fontWeight: '700', color: '#C7C7CC' },
+
+    reportHeaderHero: { paddingHorizontal: 20, paddingBottom: 60, borderBottomLeftRadius: 40, borderBottomRightRadius: 40 },
+    heroProfileInfo: { alignItems: 'center', marginTop: 10 },
+    reportAvatarWrapperHero: { position: 'relative', marginBottom: 12 },
+    reportAvatarHero: { width: 88, height: 88, borderRadius: 44, borderWidth: 4, borderColor: '#FFFFFF' },
+    verifyBadgeHero: { position: 'absolute', bottom: 2, right: 2, width: 22, height: 22, borderRadius: 11, borderWidth: 3, borderColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center' },
+    reportNameHero: { fontSize: 24, fontWeight: '900', color: '#FFFFFF', letterSpacing: -0.5, paddingHorizontal: 20, textAlign: 'center' },
+    reportBadgeHero: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, marginTop: 6 },
+    reportBadgeTextHero: { fontSize: 10, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.5 },
+
+    contactCardRound: { flexDirection: 'row', backgroundColor: '#FFFFFF', borderRadius: 24, paddingVertical: 16, paddingHorizontal: 10, marginBottom: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.08, shadowRadius: 24, elevation: 8 },
+    contactItemBox: { flex: 1, alignItems: 'center', gap: 8 },
+    contactCircleIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#F8F9FA', justifyContent: 'center', alignItems: 'center' },
+    contactItemText: { fontSize: 12, fontWeight: '700', color: '#8E8E93' },
+    contactDivider: { width: 1, backgroundColor: '#F2F2F7', marginVertical: 4 },
+
+    metricSquareIcon: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+    downloadReportGradient: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 12, height: 56, borderRadius: 20 },
 });

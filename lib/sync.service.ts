@@ -39,6 +39,9 @@ export async function initializeSyncManager() {
 
             console.log(`📡 Network status: ${isOnline ? 'Online' : 'Offline'}`);
 
+            // Emit events for UI consumers
+            DeviceEventEmitter.emit(isOnline ? 'network_online' : 'network_offline');
+
             // When coming back online, trigger sync
             if (wasOffline && isOnline) {
                 console.log('🔄 Back online, triggering sync...');

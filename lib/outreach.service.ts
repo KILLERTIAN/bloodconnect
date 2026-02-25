@@ -1,4 +1,5 @@
 import { execute, query } from './database';
+import { generateUniqueId } from './id';
 
 export interface OutreachLead {
     id: number;
@@ -64,7 +65,7 @@ export async function getLeadById(id: number): Promise<OutreachLead | null> {
 }
 
 export async function createLead(data: Partial<OutreachLead> & { created_by: number }): Promise<number> {
-    const newId = Date.now();
+    const newId = generateUniqueId();
     await execute(`
         INSERT INTO outreach_leads (
             id, organization_name, poc_name, poc_phone, poc_email,

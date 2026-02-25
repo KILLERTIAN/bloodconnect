@@ -107,7 +107,7 @@ export default function HelplineScreen() {
                     data = await getAssignedHelplines(user.id) as any;
                 } else {
                     data = await getAllHelplineRequests();
-                    if (tab === 'live') data = data.filter(r => r.is_live);
+                    if (tab === 'live') data = data.filter(r => Number(r.is_live) === 1);
                 }
                 setRequests(data);
             }
@@ -236,7 +236,7 @@ export default function HelplineScreen() {
                                     <Text style={[styles.urgencyText, { color: '#8E8E93', fontSize: 9 }]}>SCHEDULED</Text>
                                 </View>
                             )}
-                            {item.is_live ? (
+                            {Number(item.is_live) === 1 ? (
                                 <View style={styles.liveIndicator}>
                                     <View style={styles.livePulse} />
                                     <Text style={styles.liveTextLabel}>LIVE</Text>
@@ -262,7 +262,7 @@ export default function HelplineScreen() {
                         <Text style={styles.statusText}>{item.status.replace('_', ' ').toUpperCase()}</Text>
                     </View>
                     <View style={styles.cardActions}>
-                        {canManage && !item.is_live && item.status === 'open' && (
+                        {canManage && Number(item.is_live) !== 1 && item.status === 'open' && (
                             <TouchableOpacity style={styles.actionBtnOutline} onPress={() => handleMakeLive(item)}>
                                 <Radio size={16} color="#FF3B30" />
                                 <Text style={styles.actionBtnTextOutline}>Go Live</Text>
@@ -276,7 +276,7 @@ export default function HelplineScreen() {
                                 <Trash2 size={16} color="#8E8E93" />
                             </TouchableOpacity>
                         )}
-                        {(item.is_live || role === 'volunteer' || role === 'helpline') && (
+                        {(Number(item.is_live) === 1 || role === 'volunteer' || role === 'helpline') && (
                             <TouchableOpacity style={styles.actionBtnSolid} onPress={() => handleOpenCallModal(item)}>
                                 <Phone size={16} color="#FFFFFF" />
                                 <Text style={styles.actionBtnTextSolid}>Call Donors</Text>
