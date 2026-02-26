@@ -3,7 +3,7 @@ import { getDonorAvatar } from '@/constants/AvatarMapping';
 import { useAuth } from '@/context/AuthContext';
 import { sync } from '@/lib/database';
 import { Event, getAllEvents, getEventsByManager } from '@/lib/events.service';
-import { getDonors, getLiveHelplines, HelplineRequest } from '@/lib/helpline.service';
+import { getAssignedHelplines, getDonors, getLiveHelplines, HelplineRequest } from '@/lib/helpline.service';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -23,7 +23,7 @@ import {
     Users,
     Zap
 } from 'lucide-react-native';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { DeviceEventEmitter, Dimensions, RefreshControl, ScrollView, StatusBar, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
 import Animated, {
@@ -113,7 +113,10 @@ export default function DashboardScreen() {
     const [refreshing, setRefreshing] = useState(false);
     const [activeEvents, setActiveEvents] = useState<Event[]>([]);
     const [criticalRequests, setCriticalRequests] = useState<HelplineRequest[]>([]);
+    const [assignedMissions, setAssignedMissions] = useState<any[]>([]);
     const [stats, setStats] = useState({ cases: 0, donors: 0 });
+    const [missionTime, setMissionTime] = useState('00:00:00');
+    const timerRef = useRef<NodeJS.Timeout | null>(null);
 
     const loadData = useCallback(async () => {
         try {
@@ -133,6 +136,26 @@ export default function DashboardScreen() {
             } else if (role === 'volunteer') {
                 const helplines = await getLiveHelplines();
                 setCriticalRequests(helplines);
+
+                const assigned = await getAssignedHelplines(user!.id);
+                if (assigned.length === 0) {
+                    // Inject dummy for testing as requested
+                    const dummy = {
+                        id: 'DEMO-101',
+                        patient_name: 'Kiran Patel',
+                        blood_group: 'A+',
+                        hospital: 'City Trauma ICU',
+                        city: 'Indiranagar',
+                        units_required: 2,
+                        status: 'in_progress',
+                        created_at: new Date(Date.now() - 3600000).toISOString() // 1 hour ago
+                    };
+                    setAssignedMissions([dummy]);
+                    startMissionTimer(dummy.created_at);
+                } else {
+                    setAssignedMissions(assigned);
+                    startMissionTimer(assigned[0].created_at);
+                }
             }
         } catch (e) {
             console.error('Home load error:', e);
@@ -140,6 +163,27 @@ export default function DashboardScreen() {
             setRefreshing(false);
         }
     }, [role, user]);
+
+    const startMissionTimer = (startTimeStr: string) => {
+        if (timerRef.current) clearInterval(timerRef.current);
+        const update = () => {
+            const start = new Date(startTimeStr).getTime();
+            const now = Date.now();
+            const diff = now - start;
+            const hours = Math.floor(diff / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+            setMissionTime(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+        };
+        update();
+        timerRef.current = setInterval(update, 1000) as any;
+    };
+
+    useEffect(() => {
+        return () => {
+            if (timerRef.current) clearInterval(timerRef.current);
+        };
+    }, []);
 
     useEffect(() => {
         loadData();
@@ -374,30 +418,38 @@ export default function DashboardScreen() {
                     <NetworkBanner />
                     <View style={styles.missionContainer}>
                         <Text style={styles.sectionTitle}>Your Active Missions</Text>
-                        <TouchableOpacity activeOpacity={0.9} onPress={() => router.push('/request-details')}>
-                            <LinearGradient
-                                colors={['#007AFF', '#0051A8']}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 1 }}
-                                style={styles.missionCard}
-                            >
-                                <View style={styles.missionHeader}>
-                                    <View style={styles.missionBadge}>
-                                        <Zap size={14} color="#FFFFFF" strokeWidth={2.5} />
-                                        <Text style={styles.missionBadgeText}>IN PROGRESS</Text>
-                                    </View>
-                                    <Text style={styles.missionTime}>02:14:59</Text>
-                                </View>
-                                <Text style={styles.missionTitle}>Coordinate O- for City Trauma ICU</Text>
-                                <View style={styles.missionFooter}>
-                                    <View style={styles.locationGroup}>
-                                        <MapPin size={14} color="#FFFFFF" opacity={0.8} />
-                                        <Text style={styles.missionLocation}>Indiranagar • 1.2km away</Text>
-                                    </View>
-                                    <ChevronRight size={20} color="#FFFFFF" />
-                                </View>
-                            </LinearGradient>
-                        </TouchableOpacity>
+                        {assignedMissions.length > 0 ? (
+                            assignedMissions.map((mission, idx) => (
+                                <TouchableOpacity key={idx} activeOpacity={0.9} onPress={() => router.push({ pathname: '/request-details', params: { id: mission.id } })}>
+                                    <LinearGradient
+                                        colors={['#007AFF', '#0051A8']}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 1 }}
+                                        style={styles.missionCard}
+                                    >
+                                        <View style={styles.missionHeader}>
+                                            <View style={styles.missionBadge}>
+                                                <Zap size={14} color="#FFFFFF" strokeWidth={2.5} />
+                                                <Text style={styles.missionBadgeText}>{mission.status.replace('_', ' ').toUpperCase()}</Text>
+                                            </View>
+                                            <Text style={styles.missionTime}>{idx === 0 ? missionTime : '--:--:--'}</Text>
+                                        </View>
+                                        <Text style={styles.missionTitle}>Coordinate {mission.blood_group} for {mission.hospital}</Text>
+                                        <View style={styles.missionFooter}>
+                                            <View style={styles.locationGroup}>
+                                                <MapPin size={14} color="#FFFFFF" opacity={0.8} />
+                                                <Text style={styles.missionLocation}>{mission.city} • Active</Text>
+                                            </View>
+                                            <ChevronRight size={20} color="#FFFFFF" />
+                                        </View>
+                                    </LinearGradient>
+                                </TouchableOpacity>
+                            ))
+                        ) : (
+                            <View style={[styles.missionCard, { backgroundColor: '#F2F2F7', shadowColor: 'transparent' }]}>
+                                <Text style={[styles.missionTitle, { color: '#8E8E93', fontSize: 16, marginBottom: 0 }]}>No active missions. Check nearby alerts!</Text>
+                            </View>
+                        )}
                     </View>
 
                     <View style={styles.roleStatsGrid}>

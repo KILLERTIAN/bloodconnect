@@ -1,9 +1,11 @@
+import UnifiedFilterSheet from '@/components/UnifiedFilterSheet';
 import { getDonorAvatar } from '@/constants/AvatarMapping';
 import { useAuth } from '@/context/AuthContext';
 import { useDialog } from '@/context/DialogContext';
 import { sync } from '@/lib/database';
 import {
     HelplineRequest,
+    claimHelplineRequest,
     deleteHelplineRequest,
     getAllHelplineRequests,
     getAssignedHelplines,
@@ -19,6 +21,7 @@ import {
     Check,
     Clock,
     Droplet,
+    Filter,
     MapPin,
     Navigation,
     Phone,
@@ -67,6 +70,15 @@ export default function HelplineScreen() {
     const [globalDonors, setGlobalDonors] = useState<any[]>([]);
     const params = useLocalSearchParams();
 
+    const [filters, setFilters] = useState<Record<string, any>>({
+        blood_group: null,
+        urgency: null,
+        component: null,
+        status: null
+    });
+    const [showFilterSheet, setShowFilterSheet] = useState(false);
+    const activeFilterCount = Object.values(filters).filter(v => v !== null && v !== undefined).length;
+
     useEffect(() => {
         if (params.tab && ['all', 'live', 'mine', 'donors'].includes(params.tab as string)) {
             setTab(params.tab as any);
@@ -95,9 +107,9 @@ export default function HelplineScreen() {
         d.blood_group.toLowerCase().includes(donorSearch.toLowerCase())
     );
 
-    const loadData = useCallback(async () => {
+    const loadData = useCallback(async (isRefresh = false) => {
         try {
-            setLoading(true);
+            if (!isRefresh) setLoading(true);
             if (tab === 'donors') {
                 const data = await getDonors();
                 setGlobalDonors(data);
@@ -109,11 +121,18 @@ export default function HelplineScreen() {
                     data = await getAllHelplineRequests();
                     if (tab === 'live') data = data.filter(r => Number(r.is_live) === 1);
                 }
+
+                // Apply logic filters if active
+                if (filters.blood_group) data = data.filter(r => r.blood_group === filters.blood_group);
+                if (filters.urgency) data = data.filter(r => r.urgency === filters.urgency);
+                if (filters.component) data = data.filter(r => r.blood_component === filters.component);
+                if (filters.status) data = data.filter(r => r.status === filters.status);
+
                 setRequests(data);
             }
         } catch (e) { console.error(e); }
         finally { setLoading(false); setRefreshing(false); }
-    }, [tab, user]);
+    }, [tab, user, filters]);
 
     useEffect(() => {
         loadData();
@@ -133,6 +152,20 @@ export default function HelplineScreen() {
                     try { await sync(); } catch (e) { }
                     DeviceEventEmitter.emit('db_synced');
                     showDialog('Live!', 'Helpline is now live and a volunteer has been assigned.', 'success');
+                }
+            }
+        ]);
+    };
+
+    const handleClaim = async (req: HelplineRequest) => {
+        showDialog('Claim Mission', `Take ownership of this request?`, 'info', [
+            { label: 'Cancel', style: 'cancel', onPress: () => { } },
+            {
+                label: 'Claim', onPress: async () => {
+                    await claimHelplineRequest(req.id, user!.id);
+                    try { await sync(); } catch (e) { }
+                    DeviceEventEmitter.emit('db_synced');
+                    showDialog('Mission Claimed!', 'You are now assigned to this case.', 'success');
                 }
             }
         ]);
@@ -203,7 +236,11 @@ export default function HelplineScreen() {
         const canManage = role === 'admin' || role === 'helpline' || role === 'manager';
 
         return (
-            <View style={styles.requestCard}>
+            <TouchableOpacity
+                activeOpacity={0.9}
+                style={styles.requestCard}
+                onPress={() => router.push({ pathname: '/request-details', params: { id: item.id } })}
+            >
                 <View style={styles.requestHeader}>
                     <View style={styles.requestTopRow}>
                         <View style={[styles.bloodBadgeCompact, { backgroundColor: '#FFEBEA' }]}>
@@ -276,6 +313,12 @@ export default function HelplineScreen() {
                                 <Trash2 size={16} color="#8E8E93" />
                             </TouchableOpacity>
                         )}
+                        {Number(item.is_live) === 1 && item.status === 'open' && (
+                            <TouchableOpacity style={[styles.actionBtnSolid, { backgroundColor: '#34C759', marginRight: 8 }]} onPress={() => handleClaim(item)}>
+                                <Check size={16} color="#FFFFFF" />
+                                <Text style={styles.actionBtnTextSolid}>Claim</Text>
+                            </TouchableOpacity>
+                        )}
                         {(Number(item.is_live) === 1 || role === 'volunteer' || role === 'helpline') && (
                             <TouchableOpacity style={styles.actionBtnSolid} onPress={() => handleOpenCallModal(item)}>
                                 <Phone size={16} color="#FFFFFF" />
@@ -284,7 +327,7 @@ export default function HelplineScreen() {
                         )}
                     </View>
                 </View>
-            </View>
+            </TouchableOpacity>
         );
     };
 
@@ -296,6 +339,19 @@ export default function HelplineScreen() {
                     <Text style={styles.headerTitle}>Blood Requests</Text>
                 </View>
                 <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <TouchableOpacity
+                        style={[styles.headerBtn, activeFilterCount > 0 && { backgroundColor: '#FFFFFF' }]}
+                        onPress={() => setShowFilterSheet(true)}
+                    >
+                        <View>
+                            <Filter size={20} color={activeFilterCount > 0 ? '#FF3B30' : '#FFFFFF'} />
+                            {activeFilterCount > 0 && (
+                                <View style={styles.filterBadge}>
+                                    <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
+                                </View>
+                            )}
+                        </View>
+                    </TouchableOpacity>
                     {(role === 'admin' || role === 'helpline' || role === 'manager') && (
                         <TouchableOpacity style={styles.headerBtn} onPress={() => router.push('/create-request')}>
                             <Plus size={22} color="#FFFFFF" strokeWidth={3} />
@@ -335,7 +391,7 @@ export default function HelplineScreen() {
                                 <TextInput
                                     style={styles.donorSearchInput}
                                     placeholder="Search by name, city or blood group..."
-                                    placeholderTextColor="#C7C7CC"
+                                    placeholderTextColor="#8E8E93"
                                     value={donorSearch}
                                     onChangeText={setDonorSearch}
                                 />
@@ -369,7 +425,7 @@ export default function HelplineScreen() {
                         </View>
                     ) : renderRequest}
                     contentContainerStyle={styles.list}
-                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />}
+                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(true); }} />}
                     ListEmptyComponent={
                         <View style={styles.emptyState}>
                             <User size={48} color="#C7C7CC" />
@@ -456,7 +512,7 @@ export default function HelplineScreen() {
                                     <TextInput
                                         style={styles.remarksInput}
                                         placeholder="Add any notes from the donor..."
-                                        placeholderTextColor="#C7C7CC"
+                                        placeholderTextColor="#8E8E93"
                                         value={callRemarks}
                                         onChangeText={setCallRemarks}
                                         multiline
@@ -477,7 +533,7 @@ export default function HelplineScreen() {
                                     <TextInput
                                         style={styles.donorSearchInput}
                                         placeholder="Search by name, phone or city..."
-                                        placeholderTextColor="#C7C7CC"
+                                        placeholderTextColor="#8E8E93"
                                         value={donorSearch}
                                         onChangeText={setDonorSearch}
                                     />
@@ -544,6 +600,46 @@ export default function HelplineScreen() {
                     )}
                 </View>
             </Modal>
+            {/* Unified Filter Sheet */}
+            <UnifiedFilterSheet
+                visible={showFilterSheet}
+                onClose={() => setShowFilterSheet(false)}
+                title="Filter Requests"
+                categories={[
+                    {
+                        id: 'blood_group',
+                        title: 'Blood Group',
+                        options: BLOOD_GROUPS.map(g => ({ label: g, value: g }))
+                    },
+                    {
+                        id: 'urgency',
+                        title: 'Urgency Level',
+                        options: URGENCIES.map(u => ({
+                            label: URGENCY_CONFIG[u as keyof typeof URGENCY_CONFIG].label,
+                            value: u,
+                            color: URGENCY_CONFIG[u as keyof typeof URGENCY_CONFIG].color
+                        }))
+                    },
+                    {
+                        id: 'component',
+                        title: 'Blood Component',
+                        options: COMPONENTS.map(c => ({ label: c, value: c }))
+                    },
+                    {
+                        id: 'status',
+                        title: 'Status',
+                        options: [
+                            { label: 'Open', value: 'open' },
+                            { label: 'In Progress', value: 'in_progress' },
+                            { label: 'Completed', value: 'completed' },
+                            { label: 'Cancelled', value: 'cancelled' }
+                        ]
+                    }
+                ]}
+                activeFilters={filters}
+                onApply={(newFilters: Record<string, any>) => setFilters(newFilters)}
+                onClear={() => setFilters({ blood_group: null, urgency: null, component: null, status: null })}
+            />
         </View>
     );
 }
@@ -553,7 +649,25 @@ const styles = StyleSheet.create({
     header: { paddingHorizontal: 24, paddingBottom: 24, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
     headerSub: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
     headerTitle: { color: '#FFFFFF', fontSize: 26, fontWeight: '900', letterSpacing: -0.5 },
-    headerBtn: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+    headerBtn: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center', position: 'relative' },
+    filterBadge: {
+        position: 'absolute',
+        top: -4,
+        right: -4,
+        backgroundColor: '#FFFFFF',
+        width: 16,
+        height: 16,
+        borderRadius: 8,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: '#FF3B30'
+    },
+    filterBadgeText: {
+        color: '#FF3B30',
+        fontSize: 10,
+        fontWeight: '900'
+    },
     tabBar: { flexDirection: 'row', backgroundColor: '#FFFFFF', paddingHorizontal: 16, paddingTop: 8, borderBottomWidth: 1, borderBottomColor: '#F2F2F7' },
     tab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 3, borderBottomColor: 'transparent' },
     tabActive: { borderBottomColor: '#FF3B30' },

@@ -1,13 +1,20 @@
 import { useAuth } from '@/context/AuthContext';
+import { registerForPushNotificationsAsync } from '@/lib/notifications.service';
 import { Tabs } from 'expo-router';
 import { Briefcase, Building2, Calendar, LayoutGrid, MapPin, Plus, Radio, UserCircle } from 'lucide-react-native';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useTheme } from 'react-native-paper';
 
 export default function TabLayout() {
   const { role } = useAuth();
   const theme = useTheme();
+
+  useEffect(() => {
+    registerForPushNotificationsAsync().then((token: string | undefined) => {
+      if (token) console.log('✅ Push Token Registered:', token);
+    });
+  }, []);
 
   const isAdmin = role === 'admin';
   const isManager = role === 'manager';

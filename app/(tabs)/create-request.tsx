@@ -1,22 +1,14 @@
+import CustomDateTimePicker from '@/components/CustomDateTimePicker';
 import { getDonorAvatar } from '@/constants/AvatarMapping';
 import { useAuth } from '@/context/AuthContext';
 import { useDialog } from '@/context/DialogContext';
 import { sync } from '@/lib/database';
 import { createHelplineRequest, makeHelplineLive } from '@/lib/helpline.service';
+import { notifyHelplineRequest } from '@/lib/notifications.service';
+import * as FileSystem from 'expo-file-system';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import {
-    Building2,
-    Calendar,
-    ChevronLeft,
-    Clock,
-    LayoutGrid,
-    MapPin,
-    Phone,
-    Siren,
-    User,
-    X
-} from 'lucide-react-native';
+import { Building2, Calendar, ChevronLeft, LayoutGrid, MapPin, Phone, Siren, User, X } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
     ActivityIndicator,
@@ -38,6 +30,16 @@ import {
     Text,
 } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+// We catch errors during import for native modules that might be missing in stale builds
+let Print: any;
+let Sharing: any;
+try {
+    Print = require('expo-print');
+    Sharing = require('expo-sharing');
+} catch (e) {
+    console.warn('⚠️ Native export modules (Print/Sharing) not found.');
+}
 
 const { width } = Dimensions.get('window');
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
@@ -67,13 +69,56 @@ export default function CreateRequestScreen() {
     const [notes, setNotes] = useState('');
     const [requiredTill, setRequiredTill] = useState('');
     const [ageModalVisible, setAgeModalVisible] = useState(false);
+    const [showRequiredDatePicker, setShowRequiredDatePicker] = useState(false);
 
     const AGE_RANGES = Array.from({ length: 43 }, (_, i) => i + 18); // 18 to 60
+
+    const handleOpenRequiredDatePicker = () => setShowRequiredDatePicker(true);
+
+    const onRequiredDateChange = (date: Date) => {
+        setShowRequiredDatePicker(false);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
+        setRequiredTill(dateStr);
+    };
+
+    const formatDisplayDate = (dateStr: string) => {
+        if (!dateStr || !dateStr.includes('-')) return dateStr;
+        try {
+            const d = new Date(dateStr + 'T00:00:00');
+            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        } catch { return dateStr; }
+    };
+
+    async function shareCSV(filename: string, content: string) {
+        try {
+            const fileUri = `${(FileSystem as any).documentDirectory}${filename}`;
+            await (FileSystem as any).writeAsStringAsync(fileUri, content, { encoding: (FileSystem as any).EncodingType?.UTF8 || 'utf8' });
+            if (Sharing && (await Sharing.isAvailableAsync())) {
+                await Sharing.shareAsync(fileUri);
+            } else {
+                showDialog('Sharing Not Available', 'Sharing is not available on this device or platform.', 'warning');
+            }
+        } catch (error) {
+            console.error('Error sharing CSV:', error);
+            showDialog('Error', 'Failed to share CSV file.', 'error');
+        }
+    }
 
     const getUrgencyKey = () => {
         if (urgency >= 66) return 'critical';
         if (urgency >= 33) return 'urgent';
         return 'normal';
+    };
+
+    const getDateValue = (): Date => {
+        if (requiredTill && requiredTill.includes('-')) {
+            const d = new Date(requiredTill + 'T00:00:00');
+            if (!isNaN(d.getTime())) return d;
+        }
+        return new Date();
     };
 
     const handleBroadcast = async () => {
@@ -108,6 +153,9 @@ export default function CreateRequestScreen() {
             if (type === 'emergency') {
                 // For emergency, make it live immediately
                 await makeHelplineLive(requestId);
+                await notifyHelplineRequest(patientName, bloodGroup, hospitalName, urgencyKey);
+            } else {
+                await notifyHelplineRequest(patientName, bloodGroup, hospitalName, 'normal');
             }
 
             // Sync to remote + refresh UI
@@ -205,7 +253,7 @@ export default function CreateRequestScreen() {
                                         onChangeText={setPatientName}
                                         placeholder="Full Name"
                                         style={styles.ghostInputFull}
-                                        placeholderTextColor="#C7C7CC"
+                                        placeholderTextColor="#8E8E93"
                                         selectionColor="#FF3B30"
                                     />
                                 </View>
@@ -324,7 +372,7 @@ export default function CreateRequestScreen() {
                                         onChangeText={setHospitalName}
                                         placeholder="Hospital Name"
                                         style={styles.ghostInputFull}
-                                        placeholderTextColor="#C7C7CC"
+                                        placeholderTextColor="#8E8E93"
                                         selectionColor="#FF3B30"
                                     />
                                 </View>
@@ -340,7 +388,7 @@ export default function CreateRequestScreen() {
                                             onChangeText={setCity}
                                             placeholder="City"
                                             style={styles.ghostInputFull}
-                                            placeholderTextColor="#C7C7CC"
+                                            placeholderTextColor="#8E8E93"
                                             selectionColor="#FF3B30"
                                         />
                                     </View>
@@ -354,7 +402,7 @@ export default function CreateRequestScreen() {
                                             onChangeText={setWardDetails}
                                             placeholder="Ward 4"
                                             style={styles.ghostInputFull}
-                                            placeholderTextColor="#C7C7CC"
+                                            placeholderTextColor="#8E8E93"
                                             selectionColor="#FF3B30"
                                         />
                                     </View>
@@ -369,7 +417,7 @@ export default function CreateRequestScreen() {
                                         onChangeText={setAddress}
                                         placeholder="Full address"
                                         style={styles.ghostInputFull}
-                                        placeholderTextColor="#C7C7CC"
+                                        placeholderTextColor="#8E8E93"
                                         selectionColor="#FF3B30"
                                     />
                                 </View>
@@ -390,7 +438,7 @@ export default function CreateRequestScreen() {
                                         onChangeText={setAttenderName}
                                         placeholder="Full Name"
                                         style={styles.ghostInputFull}
-                                        placeholderTextColor="#C7C7CC"
+                                        placeholderTextColor="#8E8E93"
                                         selectionColor="#FF3B30"
                                     />
                                 </View>
@@ -405,7 +453,7 @@ export default function CreateRequestScreen() {
                                         placeholder="+91 00000 00000"
                                         keyboardType="phone-pad"
                                         style={styles.ghostInputFull}
-                                        placeholderTextColor="#C7C7CC"
+                                        placeholderTextColor="#8E8E93"
                                         selectionColor="#FF3B30"
                                     />
                                 </View>
@@ -463,17 +511,26 @@ export default function CreateRequestScreen() {
                                             </TouchableOpacity>
                                         ))}
                                     </View>
-                                    <View style={styles.premiumInput}>
-                                        <Clock size={20} color="#8E8E93" style={styles.inputIcon} />
-                                        <TextInput
-                                            value={requiredTill}
-                                            onChangeText={setRequiredTill}
-                                            placeholder="Specify Date/Time"
-                                            style={styles.ghostInputFull}
-                                            placeholderTextColor="#C7C7CC"
-                                            selectionColor="#FF3B30"
-                                        />
-                                    </View>
+                                    <TouchableOpacity
+                                        style={styles.premiumInput}
+                                        onPress={handleOpenRequiredDatePicker}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Calendar size={18} color="#E63946" style={styles.inputIcon} />
+                                        <Text style={[styles.ghostInputFull, !requiredTill && { color: '#8E8E93' }]}>
+                                            {requiredTill ? formatDisplayDate(requiredTill) : 'Select Date'}
+                                        </Text>
+                                    </TouchableOpacity>
+
+                                    <CustomDateTimePicker
+                                        visible={showRequiredDatePicker}
+                                        mode="date"
+                                        title="Needed By"
+                                        onClose={() => setShowRequiredDatePicker(false)}
+                                        onConfirm={onRequiredDateChange}
+                                        initialDate={getDateValue()}
+                                        minimumDate={new Date()}
+                                    />
                                 </View>
                             )}
                         </Card>
@@ -490,7 +547,7 @@ export default function CreateRequestScreen() {
                                 multiline
                                 numberOfLines={3}
                                 style={styles.notesInput}
-                                placeholderTextColor="#C7C7CC"
+                                placeholderTextColor="#8E8E93"
                                 selectionColor="#FF3B30"
                             />
                         </Card>

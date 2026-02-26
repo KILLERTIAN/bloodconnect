@@ -64,7 +64,7 @@ export async function getLeadById(id: number): Promise<OutreachLead | null> {
     return result.rows[0] as unknown as OutreachLead;
 }
 
-export async function createLead(data: Partial<OutreachLead> & { created_by: number }): Promise<number> {
+export async function createLead(data: Partial<OutreachLead> & { created_by: string | number }): Promise<string | number> {
     const newId = generateUniqueId();
     await execute(`
         INSERT INTO outreach_leads (

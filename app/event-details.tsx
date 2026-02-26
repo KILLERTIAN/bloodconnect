@@ -56,7 +56,8 @@ export default function EventDetailsScreen() {
     const loadEvent = async () => {
         try {
             if (params.id) {
-                const data = await getEventById(Number(params.id));
+                const idParam = Array.isArray(params.id) ? params.id[0] : params.id;
+                const data = await getEventById(idParam);
                 setCamp(data);
             }
         } catch (e) {
@@ -112,7 +113,11 @@ export default function EventDetailsScreen() {
         'https://images.unsplash.com/photo-1536856492745-59699b353c7c?q=80&w=1000&auto=format&fit=crop',
         'https://images.unsplash.com/photo-1542884748-2b87b36c6b90?q=80&w=1000&auto=format&fit=crop'
     ];
-    const placeholderUrl = BLOOD_DONATION_IMAGES[camp.id % BLOOD_DONATION_IMAGES.length];
+    // Generate an index from the ID whether it's a number or a string UUID
+    const idVal = typeof camp.id === 'string'
+        ? camp.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+        : camp.id;
+    const placeholderUrl = BLOOD_DONATION_IMAGES[idVal % BLOOD_DONATION_IMAGES.length];
     const imageUrl = camp.image_url || placeholderUrl;
 
     const formatDate = (dateStr: string) => {

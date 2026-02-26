@@ -1,3 +1,4 @@
+import UnifiedFilterSheet from '@/components/UnifiedFilterSheet';
 import { useAuth } from '@/context/AuthContext';
 import { useDialog } from '@/context/DialogContext';
 import { sync } from '@/lib/database';
@@ -42,11 +43,18 @@ export default function OutreachScreen() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [search, setSearch] = useState('');
-    const [filterStatus, setFilterStatus] = useState<string | null>(null);
-    const [filterType, setFilterType] = useState<string | null>(null);
-    const [filterCategory, setFilterCategory] = useState<string | null>(null);
+
+    // Unified Filters
+    const [filters, setFilters] = useState<Record<string, any>>({
+        status: null,
+        type: null,
+        org_category: null
+    });
+
     const [showAddModal, setShowAddModal] = useState(false);
-    const [showFilterModal, setShowFilterModal] = useState(false);
+    const [showFilterSheet, setShowFilterSheet] = useState(false);
+
+    const activeFilterCount = Object.values(filters).filter(v => v !== null && v !== undefined).length;
 
     const [form, setForm] = useState({
         organization_name: '', poc_name: '', poc_phone: '', poc_email: '',
@@ -57,14 +65,14 @@ export default function OutreachScreen() {
     const loadLeads = useCallback(async () => {
         try {
             const data = await getAllLeads({
-                status: filterStatus || undefined,
-                type: filterType || undefined,
-                org_category: filterCategory || undefined,
+                status: filters.status || undefined,
+                type: filters.type || undefined,
+                org_category: filters.org_category || undefined,
             });
             setLeads(data);
         } catch (e) { console.error(e); }
         finally { setLoading(false); setRefreshing(false); }
-    }, [filterStatus, filterType, filterCategory]);
+    }, [filters]);
 
     useEffect(() => {
         loadLeads();
@@ -186,17 +194,20 @@ export default function OutreachScreen() {
                     </View>
                     <View style={styles.headerActions}>
                         <TouchableOpacity
-                            style={[styles.headerBtn, filterType && { backgroundColor: '#FFFFFF' }]}
-                            onPress={() => {
-                                showDialog('Filter by Type', 'Select a lead type to view.', 'info', [
-                                    { label: 'All Types', onPress: () => setFilterType(null) },
-                                    { label: 'Blood Camp', onPress: () => setFilterType('camp') },
-                                    { label: 'Awareness Session', onPress: () => setFilterType('awareness_session') },
-                                    { label: 'Cancel', style: 'cancel', onPress: () => { } }
-                                ]);
-                            }}
+                            style={[
+                                styles.headerBtn,
+                                activeFilterCount > 0 && { backgroundColor: '#FFFFFF' }
+                            ]}
+                            onPress={() => setShowFilterSheet(true)}
                         >
-                            <Filter size={20} color={filterType ? '#FF9500' : '#FFFFFF'} />
+                            <View>
+                                <Filter size={20} color={activeFilterCount > 0 ? '#FF9500' : '#FFFFFF'} />
+                                {activeFilterCount > 0 && (
+                                    <View style={styles.filterBadge}>
+                                        <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
+                                    </View>
+                                )}
+                            </View>
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.headerBtn} onPress={() => setShowAddModal(true)}>
                             <Plus size={20} color="#FFFFFF" strokeWidth={3} />
@@ -216,18 +227,18 @@ export default function OutreachScreen() {
                     {counts.map(c => (
                         <Chip
                             key={c.key}
-                            selected={filterStatus === c.key}
-                            onPress={() => setFilterStatus(filterStatus === c.key ? null : c.key)}
+                            selected={filters.status === c.key}
+                            onPress={() => setFilters(prev => ({ ...prev, status: prev.status === c.key ? null : c.key }))}
                             style={[
                                 styles.summaryChip,
-                                filterStatus === c.key
+                                filters.status === c.key
                                     ? { backgroundColor: c.color, borderWidth: 0 }
                                     : { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#F2F2F7' }
                             ]}
                             showSelectedCheck={false}
                             textStyle={[
                                 styles.summaryChipText,
-                                { color: filterStatus === c.key ? '#FFFFFF' : '#8E8E93' }
+                                { color: filters.status === c.key ? '#FFFFFF' : '#8E8E93' }
                             ]}
                             mode="flat"
                         >
@@ -244,7 +255,7 @@ export default function OutreachScreen() {
                     <TextInput
                         style={styles.searchInput}
                         placeholder="Search organizations, POC, city..."
-                        placeholderTextColor="#C7C7CC"
+                        placeholderTextColor="#8E8E93"
                         value={search}
                         onChangeText={setSearch}
                     />
@@ -300,7 +311,7 @@ export default function OutreachScreen() {
                                     <TextInput
                                         style={[styles.formInput, (field as any).multiline && { height: 80, textAlignVertical: 'top' }]}
                                         placeholder={field.placeholder}
-                                        placeholderTextColor="#C7C7CC"
+                                        placeholderTextColor="#8E8E93"
                                         value={(form as any)[field.key]}
                                         onChangeText={v => setForm(f => ({ ...f, [field.key]: v }))}
                                         keyboardType={(field as any).keyboard || 'default'}
@@ -346,6 +357,43 @@ export default function OutreachScreen() {
                     </View>
                 </KeyboardAvoidingView>
             </Modal>
+
+            {/* Unified Filter Sheet */}
+            <UnifiedFilterSheet
+                visible={showFilterSheet}
+                onClose={() => setShowFilterSheet(false)}
+                title="Filter Leads"
+                categories={[
+                    {
+                        id: 'status',
+                        title: 'Lead Status',
+                        options: Object.keys(STATUS_CONFIG).map(k => ({
+                            label: STATUS_CONFIG[k].label,
+                            value: k,
+                            color: STATUS_CONFIG[k].color
+                        }))
+                    },
+                    {
+                        id: 'type',
+                        title: 'Lead Type',
+                        options: [
+                            { label: 'Blood Camp', value: 'camp' },
+                            { label: 'Awareness Session', value: 'awareness_session' }
+                        ]
+                    },
+                    {
+                        id: 'org_category',
+                        title: 'Organization Category',
+                        options: ORG_CATEGORIES.map(c => ({
+                            label: c.charAt(0).toUpperCase() + c.slice(1),
+                            value: c
+                        }))
+                    }
+                ]}
+                activeFilters={filters}
+                onApply={(newFilters) => setFilters(newFilters)}
+                onClear={() => setFilters({ status: null, type: null, org_category: null })}
+            />
         </View>
     );
 }
@@ -402,7 +450,26 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         backgroundColor: 'rgba(255,255,255,0.2)',
         justifyContent: 'center',
-        alignItems: 'center'
+        alignItems: 'center',
+        position: 'relative'
+    },
+    filterBadge: {
+        position: 'absolute',
+        top: -4,
+        right: -4,
+        backgroundColor: '#E63946',
+        width: 16,
+        height: 16,
+        borderRadius: 8,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: '#FF9500'
+    },
+    filterBadgeText: {
+        color: '#FFFFFF',
+        fontSize: 10,
+        fontWeight: '900'
     },
     summaryContainer: {
         paddingVertical: 16,

@@ -1,4 +1,5 @@
 import NetworkBanner from '@/components/NetworkBanner';
+import UnifiedFilterSheet from '@/components/UnifiedFilterSheet';
 import { useAuth } from '@/context/AuthContext';
 import { useDialog } from '@/context/DialogContext';
 import { manualSync, sync } from '@/lib/database';
@@ -11,6 +12,7 @@ import {
     Calendar,
     ChevronLeft,
     ChevronRight,
+    Filter,
     MapPin,
     Phone,
     Plus,
@@ -23,7 +25,6 @@ import {
     DeviceEventEmitter,
     FlatList,
     RefreshControl,
-    ScrollView,
     StyleSheet,
     Text,
     TextInput,
@@ -52,7 +53,12 @@ export default function CampManagerScreen() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [search, setSearch] = useState('');
-    const [filterStatus, setFilterStatus] = useState<string | null>(null);
+
+    const [filters, setFilters] = useState<Record<string, any>>({
+        status: null
+    });
+    const [showFilterSheet, setShowFilterSheet] = useState(false);
+    const activeFilterCount = Object.values(filters).filter(v => v !== null && v !== undefined).length;
 
     const isDonorOrVolunteer = role === 'donor' || role === 'volunteer';
 
@@ -144,7 +150,7 @@ export default function CampManagerScreen() {
 
     const filtered = events.filter(e => {
         const matchSearch = !search || e.organization_name.toLowerCase().includes(search.toLowerCase()) || e.title.toLowerCase().includes(search.toLowerCase());
-        const matchStatus = !filterStatus || e.status === filterStatus;
+        const matchStatus = !filters.status || e.status === filters.status;
         return matchSearch && matchStatus;
     });
 
@@ -261,12 +267,27 @@ export default function CampManagerScreen() {
                         <Text style={styles.headerTitle}>Blood Camps</Text>
                     </View>
                 </View>
-                {/* Only show Add button for Managers/Admins */}
-                {!isDonorOrVolunteer && (
-                    <TouchableOpacity style={styles.addBtn} onPress={() => router.push('/camp-editor')}>
-                        <Plus size={22} color="#FFFFFF" strokeWidth={3} />
+                {/* Header Actions */}
+                <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+                    <TouchableOpacity
+                        style={[styles.headerBtn, activeFilterCount > 0 && { backgroundColor: '#FFFFFF' }]}
+                        onPress={() => setShowFilterSheet(true)}
+                    >
+                        <View>
+                            <Filter size={20} color={activeFilterCount > 0 ? '#007AFF' : '#FFFFFF'} />
+                            {activeFilterCount > 0 && (
+                                <View style={[styles.filterBadge, { borderColor: '#007AFF' }]}>
+                                    <Text style={[styles.filterBadgeText, { color: '#007AFF' }]}>{activeFilterCount}</Text>
+                                </View>
+                            )}
+                        </View>
                     </TouchableOpacity>
-                )}
+                    {!isDonorOrVolunteer && (
+                        <TouchableOpacity style={styles.addBtn} onPress={() => router.push('/camp-editor')}>
+                            <Plus size={22} color="#FFFFFF" strokeWidth={3} />
+                        </TouchableOpacity>
+                    )}
+                </View>
             </LinearGradient>
 
             <NetworkBanner />
@@ -294,59 +315,14 @@ export default function CampManagerScreen() {
                     <TextInput
                         style={styles.searchInput}
                         placeholder="Search camps..."
-                        placeholderTextColor="#C7C7CC"
+                        placeholderTextColor="#8E8E93"
                         value={search}
                         onChangeText={setSearch}
                     />
                 </View>
             </View>
 
-            {/* Status Filter */}
-            <View style={styles.filterContainer}>
-                <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.filterScrollContent}
-                >
-                    <Chip
-                        selected={!filterStatus}
-                        onPress={() => setFilterStatus(null)}
-                        style={[
-                            styles.chipItem,
-                            !filterStatus ? { backgroundColor: '#007AFF', borderWidth: 0 } : { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E5EA' }
-                        ]}
-                        showSelectedCheck={false}
-                        textStyle={[
-                            styles.chipText,
-                            { color: !filterStatus ? '#FFFFFF' : '#8E8E93' }
-                        ]}
-                        mode="flat"
-                    >
-                        All
-                    </Chip>
-                    {EVENT_STATUSES.map(s => (
-                        <Chip
-                            key={s.key}
-                            selected={filterStatus === s.key}
-                            onPress={() => setFilterStatus(filterStatus === s.key ? null : s.key)}
-                            style={[
-                                styles.chipItem,
-                                filterStatus === s.key
-                                    ? { backgroundColor: STATUS_COLORS[s.key] || '#007AFF', borderWidth: 0 }
-                                    : { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E5EA' }
-                            ]}
-                            showSelectedCheck={false}
-                            textStyle={[
-                                styles.chipText,
-                                { color: filterStatus === s.key ? '#FFFFFF' : '#8E8E93' }
-                            ]}
-                            mode="flat"
-                        >
-                            {s.label}
-                        </Chip>
-                    ))}
-                </ScrollView>
-            </View>
+            {/* Status Filter Placeholder removed in favor of sheet */}
 
             {/* List */}
             {loading ? (
@@ -370,7 +346,26 @@ export default function CampManagerScreen() {
                 />
             )}
 
-            {/* Modal removed in favor of camp-editor screen */}
+            {/* Unified Filter Sheet */}
+            <UnifiedFilterSheet
+                visible={showFilterSheet}
+                onClose={() => setShowFilterSheet(false)}
+                title="Filter Camps"
+                categories={[
+                    {
+                        id: 'status',
+                        title: 'Camp Status',
+                        options: EVENT_STATUSES.map(s => ({
+                            label: s.label,
+                            value: s.key,
+                            color: STATUS_COLORS[s.key]
+                        }))
+                    }
+                ]}
+                activeFilters={filters}
+                onApply={(newFilters: Record<string, any>) => setFilters(newFilters)}
+                onClear={() => setFilters({ status: null })}
+            />
         </View>
     );
 }
@@ -382,7 +377,24 @@ const styles = StyleSheet.create({
     backBtnHeader: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
     headerSub: { color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: '700', letterSpacing: 1 },
     headerTitle: { color: '#FFFFFF', fontSize: 28, fontWeight: '900', letterSpacing: -0.5 },
-    addBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+    headerBtn: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center', position: 'relative' },
+    filterBadge: {
+        position: 'absolute',
+        top: -4,
+        right: -4,
+        backgroundColor: '#FFFFFF',
+        width: 16,
+        height: 16,
+        borderRadius: 8,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2,
+    },
+    filterBadgeText: {
+        fontSize: 10,
+        fontWeight: '900'
+    },
+    addBtn: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
     statsBar: { flexDirection: 'row', backgroundColor: '#FFFFFF', paddingVertical: 16, paddingHorizontal: 24, borderBottomWidth: 1, borderBottomColor: '#F2F2F7' },
     statItem: { flex: 1, alignItems: 'center' },
     statValue: { fontSize: 22, fontWeight: '900' },

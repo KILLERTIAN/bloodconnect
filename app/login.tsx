@@ -110,11 +110,26 @@ export default function LoginScreen() {
                 >
                     {/* ── Logo ── */}
                     <View style={styles.logoSection}>
-                        <LinearGradient colors={['#FF3B30', '#FF2D55']} style={styles.logoCircle}>
-                            <Droplet size={36} color="#FFFFFF" fill="#FFFFFF" strokeWidth={1.5} />
-                        </LinearGradient>
+                        <TouchableOpacity
+                            onLongPress={async () => {
+                                showDialog('Factory Reset', 'Erasing all local app logs, cached remote data, and login state...', 'warning');
+                                await require('@react-native-async-storage/async-storage').default.clear();
+                                try {
+                                    await require('expo-sqlite').deleteDatabaseAsync('bloodconn_v1.db');
+                                } catch (e) { }
+                                setTimeout(() => {
+                                    require('react-native').NativeModules.DevSettings.reload();
+                                }, 1500)
+                            }}
+                            activeOpacity={0.8}
+                        >
+                            <LinearGradient colors={['#FF3B30', '#FF2D55']} style={styles.logoCircle}>
+                                <Droplet size={36} color="#FFFFFF" fill="#FFFFFF" strokeWidth={1.5} />
+                            </LinearGradient>
+                        </TouchableOpacity>
                         <Text style={styles.appName}>BloodConnect</Text>
                         <Text style={styles.appTagline}>Saving Lives Together</Text>
+                        <Text style={styles.helperText}>(Long press icon to Hard Reset App)</Text>
                     </View>
 
                     {/* ── Tab Switcher ── */}
@@ -155,7 +170,7 @@ export default function LoginScreen() {
                                         <TextInput
                                             style={styles.input}
                                             placeholder="your@bloodconnect.org"
-                                            placeholderTextColor="#C7C7CC"
+                                            placeholderTextColor="#8E8E93"
                                             value={email}
                                             onChangeText={setEmail}
                                             keyboardType="email-address"
@@ -172,7 +187,7 @@ export default function LoginScreen() {
                                         <TextInput
                                             style={styles.input}
                                             placeholder="Enter your password"
-                                            placeholderTextColor="#C7C7CC"
+                                            placeholderTextColor="#8E8E93"
                                             value={password}
                                             onChangeText={setPassword}
                                             secureTextEntry={!showPassword}
@@ -311,6 +326,7 @@ const styles = StyleSheet.create({
     },
     appName: { fontSize: 30, fontWeight: '900', color: '#1C1C1E', letterSpacing: -1 },
     appTagline: { fontSize: 14, color: '#8E8E93', fontWeight: '600', marginTop: 4 },
+    helperText: { fontSize: 10, color: '#C7C7CC', marginTop: 8 },
 
     // Tab Switcher
     tabSwitcher: {

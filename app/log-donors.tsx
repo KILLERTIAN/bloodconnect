@@ -23,7 +23,7 @@ export default function LogDonorsScreen() {
     const { showDialog } = useDialog();
     const insets = useSafeAreaInsets();
     const params = useLocalSearchParams();
-    const eventId = Number(params.eventId);
+    const eventId = Array.isArray(params.eventId) ? params.eventId[0] : params.eventId;
 
     const [donors, setDonors] = useState<any[]>([]);
     const [name, setName] = useState('');
@@ -92,12 +92,14 @@ export default function LogDonorsScreen() {
                     <TextInput
                         style={[styles.input, { flex: 2 }]}
                         placeholder="Donor Name"
+                        placeholderTextColor="#8E8E93"
                         value={name}
                         onChangeText={setName}
                     />
                     <TextInput
                         style={[styles.input, { flex: 1.5 }]}
                         placeholder="Phone"
+                        placeholderTextColor="#8E8E93"
                         keyboardType="phone-pad"
                         value={phone}
                         onChangeText={setPhone}
@@ -105,6 +107,7 @@ export default function LogDonorsScreen() {
                     <TextInput
                         style={[styles.input, { flex: 1 }]}
                         placeholder="Grp"
+                        placeholderTextColor="#8E8E93"
                         autoCapitalize="characters"
                         value={bloodGroup}
                         onChangeText={setBloodGroup}

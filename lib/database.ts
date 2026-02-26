@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import * as SQLite from 'expo-sqlite';
-import { Platform } from 'react-native';
+import { DeviceEventEmitter, Platform } from 'react-native';
 import { initializeSchema, seedDefaultUsers, seedExperience, seedInitialData } from './schema';
 
 const LOCAL_DB_NAME = 'bloodconnect.db';
@@ -34,6 +34,8 @@ export async function saveTursoToken(token: string) {
 
 let dbInstance: SQLite.SQLiteDatabase | null = null;
 let isSyncing = false;
+let lastSyncFailedAt: number = 0;
+const SYNC_BACKOFF_MS = 60_000; // 1 minute cooldown after server errors
 
 // ─── Offline Write Queue Persistence (using AsyncStorage) ──────────────
 interface PendingWrite {
@@ -183,6 +185,35 @@ export async function flushPendingWrites(): Promise<boolean> {
 
 // ─── DB Initialization ──────────────────────────────────────────────
 
+/** Helper: wipe the DB file + its WAL/SHM side-files and re-open fresh */
+async function _hardResetAndReopen(openOptions: any): Promise<SQLite.SQLiteDatabase> {
+    // Close any lingering instance first
+    if (dbInstance) {
+        try { await dbInstance.closeAsync(); } catch (_) { /* ignore */ }
+        dbInstance = null;
+    }
+    // Small delay so the OS releases file locks
+    await new Promise(resolve => setTimeout(resolve, 300));
+    await SQLite.deleteDatabaseAsync(LOCAL_DB_NAME);
+    console.log('✅ Corrupt DB wiped. Re-opening fresh...');
+    const fresh = await SQLite.openDatabaseAsync(LOCAL_DB_NAME, openOptions);
+    // Immediately restore the schema so the app is never schemaless
+    await initializeSchema(fresh);
+    await fresh.execAsync('PRAGMA user_version = 4');
+    console.log('✅ Schema restored on fresh DB.');
+    return fresh;
+}
+
+const _IS_CORRUPT = (msg?: string) =>
+    !!msg && (
+        msg.includes('malformed') ||
+        msg.includes('corrupt') ||
+        msg.includes('SQLITE_CORRUPT') ||
+        msg.includes('init_step failed') ||
+        msg.includes('not a database') ||
+        msg.includes('Construct')
+    );
+
 export async function getDB() {
     if (dbInstance) {
         return dbInstance;
@@ -207,8 +238,7 @@ export async function getDB() {
     try {
         dbInstance = await SQLite.openDatabaseAsync(LOCAL_DB_NAME, openOptions);
 
-        // Safety check: Ensure schema exists immediately upon connection to prevent "no such table"
-        // This is crucial for when the DB is deleted due to a Turso Replica conflict.
+        // Safety check: Ensure schema exists immediately upon connection.
         // IMPORTANT: Only create empty tables here (DDL). Do NOT seed data!
         // Seeding creates local WAL frames that conflict with syncLibSQL() pulls.
         // Data seeding happens later in migrateDbIfNeeded() AFTER sync.
@@ -219,36 +249,42 @@ export async function getDB() {
                 await initializeSchema(dbInstance);
                 await dbInstance.execAsync('PRAGMA user_version = 4');
             }
-        } catch (schemaErr) {
-            console.error('Failed to verify/restore schema on getDB:', schemaErr);
+        } catch (schemaErr: any) {
+            // If even a simple SELECT fails, the DB is corrupt — reset it
+            if (_IS_CORRUPT(schemaErr?.message)) {
+                console.error('🚨 Schema check revealed corrupt DB. Resetting...', schemaErr);
+                dbInstance = await _hardResetAndReopen(openOptions);
+            } else {
+                console.error('Failed to verify/restore schema on getDB:', schemaErr);
+            }
         }
 
     } catch (error: any) {
         console.error('🚨 Failed to open/initialize DB:', error);
 
-        if (
-            error?.message?.includes('malformed') ||
-            error?.message?.includes('corrupt') ||
-            error?.message?.includes('not a database') ||
-            error?.message?.includes('Construct')
-        ) {
-            console.log('♻️ Database corrupted. Initiating Hard Reset...');
+        if (_IS_CORRUPT(error?.message)) {
+            console.log('♻️ Database corrupted (open-time). Initiating Hard Reset...');
             try {
-                await SQLite.deleteDatabaseAsync(LOCAL_DB_NAME);
-                console.log('✅ Corrupted DB deleted. Re-initializing...');
-                dbInstance = await SQLite.openDatabaseAsync(LOCAL_DB_NAME, openOptions);
+                dbInstance = await _hardResetAndReopen(openOptions);
             } catch (recoveryError) {
                 console.error('❌ CRITICAL: Failed to recover database:', recoveryError);
                 throw recoveryError;
             }
         } else {
-            console.error('❌ SQL Error during open:', error);
+            // Non-corruption native error — still wipe and try a clean start
+            console.error('❌ Non-corruption SQL error on open. Attempting clean reopen...');
             try {
-                if (dbInstance) await dbInstance.closeAsync();
+                if (dbInstance) { try { await dbInstance.closeAsync(); } catch (_) { } }
+                dbInstance = null;
                 await SQLite.deleteDatabaseAsync(LOCAL_DB_NAME);
                 console.log('♻️ Emergency hard reset completed after native error.');
-            } catch (err) { /* ignore */ }
-            throw error;
+                dbInstance = await SQLite.openDatabaseAsync(LOCAL_DB_NAME, openOptions);
+                await initializeSchema(dbInstance);
+                await dbInstance.execAsync('PRAGMA user_version = 4');
+            } catch (err) {
+                console.error('❌ CRITICAL: Emergency reopen also failed:', err);
+                throw err;
+            }
         }
     }
 
@@ -274,7 +310,8 @@ export async function migrateDbIfNeeded(db: SQLite.SQLiteDatabase) {
             try {
                 await syncDatabase(db);
                 console.log('✅ Pre-migration sync complete.');
-            } catch (syncErr) {
+            } catch (syncErr: any) {
+                if (syncErr?.message === 'sync_reset') throw syncErr;
                 console.log('⚠️ Pre-migration sync failed (likely offline or first run fallback):', syncErr);
             }
         }
@@ -387,11 +424,20 @@ export async function migrateDbIfNeeded(db: SQLite.SQLiteDatabase) {
             await seedDefaultUsers(db);
         }
 
-        // Final sync check
-        sync().catch(e => console.log('Background final sync error:', e));
+        // Final background sync — but SAFE: do not allow it to reset the DB
+        // which would wipe out the users we just seeded.
+        // Use syncDatabase directly with conflict handling suppressed.
+        syncDatabase(db).catch(e => {
+            if (e?.message === 'sync_reset') {
+                console.log('⚠️ Background sync triggered reset (expected after local seed). Will reconcile on next launch.');
+            } else {
+                console.log('Background final sync error:', e);
+            }
+        });
 
-    } catch (e) {
+    } catch (e: any) {
         console.error('Migration error:', e);
+        if (e?.message === 'sync_reset') throw e;
     }
 }
 
@@ -517,21 +563,101 @@ async function _cleanupDanglingLocalRecords(db: any, tursoUrl: string, token: st
     }
 }
 
+// ─── HTTP-based full data pull (fallback when syncLibSQL fails) ──────
+
+const ALL_TABLES = [
+    'users', 'events', 'event_volunteers', 'reimbursements',
+    'schedules', 'schedule_settings', 'outreach_leads', 'outreach_interactions',
+    'donors', 'helpline_requests', 'helpline_assignments', 'call_logs', 'notifications'
+];
+
+async function _pullAllRemoteDataViaHttp(db: any): Promise<boolean> {
+    const token = await getTursoToken();
+    if (!TURSO_URL || !token) return false;
+
+    const httpUrl = TURSO_URL.replace('libsql://', 'https://');
+
+    try {
+        const requests: any[] = ALL_TABLES.map(t => ({
+            type: 'execute',
+            stmt: { sql: `SELECT * FROM ${t}` }
+        }));
+        requests.push({ type: 'close' });
+
+        const res = await fetch(`${httpUrl}/v2/pipeline`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ requests }),
+        });
+
+        if (!res.ok) {
+            console.warn(`⚠️ HTTP pull failed: status ${res.status}`);
+            return false;
+        }
+
+        const json = await res.json();
+        let totalRows = 0;
+
+        await db.execAsync('PRAGMA foreign_keys=OFF;');
+
+        for (let i = 0; i < ALL_TABLES.length; i++) {
+            const tableName = ALL_TABLES[i];
+            const result = json.results[i]?.response?.result;
+            if (!result || result.type === 'error') continue;
+
+            const rows = result.rows || [];
+
+            // Clear local table first so remote fully replaces local (no duplicates)
+            await db.runAsync(`DELETE FROM ${tableName}`);
+
+            if (rows.length === 0) continue;
+
+            const cols = result.cols.map((c: any) => c.name);
+            const placeholders = cols.map(() => '?').join(',');
+            const sql = `INSERT INTO ${tableName}(${cols.join(',')}) VALUES(${placeholders})`;
+
+            for (const row of rows) {
+                const values = row.map((v: any) => v.value);
+                try {
+                    await db.runAsync(sql, values);
+                    totalRows++;
+                } catch (insertErr: any) {
+                    console.warn(`⚠️ Skipped row in ${tableName}:`, insertErr?.message?.substring(0, 60));
+                }
+            }
+        }
+
+        await db.execAsync('PRAGMA foreign_keys=ON;');
+        console.log(`✅ HTTP pull complete: ${totalRows} rows across ${ALL_TABLES.length} tables.`);
+        return totalRows > 0;
+    } catch (e: any) {
+        console.warn('⚠️ HTTP data pull failed:', e?.message?.substring(0, 80));
+        return false;
+    }
+}
+
 export async function syncDatabase(db: any) {
     if (Platform.OS === 'web') return;
     if (isSyncing) {
         console.log('⏳ Sync already in progress, skipping redundant call.');
         return;
     }
+    // Back off if the server recently returned a 500 error
+    if (lastSyncFailedAt > 0 && (Date.now() - lastSyncFailedAt) < SYNC_BACKOFF_MS) {
+        const remainingSec = Math.ceil((SYNC_BACKOFF_MS - (Date.now() - lastSyncFailedAt)) / 1000);
+        console.log(`⏳ Sync backoff active. Skipping sync, retry in ${remainingSec}s.`);
+        return;
+    }
 
     try {
         isSyncing = true;
 
-        // IMPORTANT: Flush local changes to the cloud BEFORE doing any pull/sync.
-        // This ensures your offline work is safely on the server first.
-        const flushOk = await flushPendingWrites();
+        // Flush local changes to the cloud BEFORE doing any pull/sync.
+        await flushPendingWrites();
 
         console.log(`🔄 Syncing with: ${TURSO_URL?.substring(0, 20)}...`);
+
+        let syncLibSQLSucceeded = false;
 
         if (db && 'syncLibSQL' in db) {
             const token = await getTursoToken();
@@ -539,92 +665,58 @@ export async function syncDatabase(db: any) {
                 const before: any = await db.getAllAsync('SELECT COUNT(*) as count FROM events');
                 console.log(`📊 LOCAL count: ${before[0].count} events`);
 
-                await db.syncLibSQL();
+                try {
+                    await db.syncLibSQL();
+                    syncLibSQLSucceeded = true;
 
-                const after: any = await db.getAllAsync('SELECT COUNT(*) as count FROM events');
-                console.log(`✅ SYNC SUCCESS. New local count: ${after[0].count}`);
+                    const after: any = await db.getAllAsync('SELECT COUNT(*) as count FROM events');
+                    console.log(`✅ SYNC SUCCESS. New local count: ${after[0].count}`);
 
-                if (before[0].count !== after[0].count) {
-                    console.log(`📊 Data changed: ${before[0].count} → ${after[0].count} events`);
-                }
+                    if (before[0].count !== after[0].count) {
+                        console.log(`📊 Data changed: ${before[0].count} → ${after[0].count} events`);
+                    }
 
-                // Clean up remote deletes
-                if (pendingWrites.length === 0) {
-                    await _cleanupDanglingLocalRecords(db, TURSO_URL, token);
+                    // Clean up remote deletes
+                    if (pendingWrites.length === 0) {
+                        await _cleanupDanglingLocalRecords(db, TURSO_URL, token);
+                    }
+                } catch (syncErr: any) {
+                    // syncLibSQL failed — fall through to HTTP fallback
+                    const msg = syncErr?.message?.substring(0, 100) || 'unknown';
+                    console.warn(`⚠️ syncLibSQL failed: ${msg}`);
+                    console.log('🔄 Falling back to HTTP-based data pull...');
+
+                    // For conflicts / generation mismatches, clear stale pending writes
+                    const isConflict = syncErr.message?.includes('server returned a conflict');
+                    const isGenMismatch = syncErr.message?.includes('Generation ID mismatch');
+                    if ((isConflict || isGenMismatch) && pendingWrites.length > 0) {
+                        console.warn(`🗑️ Dropping ${pendingWrites.length} stale pending writes.`);
+                        pendingWrites = [];
+                        await saveQueue();
+                    }
+
+                    // For 500 errors, set backoff
+                    if (syncErr.message?.includes('status=500') || syncErr.message?.includes('Internal Server Error')) {
+                        lastSyncFailedAt = Date.now();
+                    }
                 }
             } else {
                 console.warn('⚠️ Sync skipped: Turso URL or Token missing.');
             }
-        } else if (db && db.sync) {
-            const token = await getTursoToken();
-            if (TURSO_URL && token) {
-                await db.sync();
-                console.log('✅ Synced with Turso successfully (legacy sync)');
+        }
+
+        // ─── HTTP Fallback ──────────────────────────────────────────
+        if (!syncLibSQLSucceeded) {
+            const pulled = await _pullAllRemoteDataViaHttp(db);
+            if (pulled) {
+                console.log('✅ Remote data synced via HTTP fallback.');
+                DeviceEventEmitter.emit('db_synced');
+            } else {
+                console.warn('⚠️ Both syncLibSQL and HTTP pull failed. Will retry later.');
             }
         }
     } catch (e: any) {
-        console.error('❌ Sync failed:', e);
-        if (e.message) console.error('Error message:', e.message);
-
-        const isConflict = e.message && e.message.includes('server returned a conflict');
-        const isGenerationMismatch = e.message && e.message.includes('Generation ID mismatch');
-        const isLocked = e.message && e.message.includes('database is locked');
-
-        if (isConflict || isGenerationMismatch) {
-            // For Generation ID mismatch, the local replica is fundamentally diverged.
-            // Pending writes from this state will NEVER succeed – they belong to a dead timeline.
-            // We must force-reset regardless of pending writes to break the deadlock.
-            if (isGenerationMismatch && pendingWrites.length > 0) {
-                console.warn(`🗑️ Force-dropping ${pendingWrites.length} stale pending writes (Generation ID mismatch – writes are from a dead timeline)`);
-                pendingWrites = [];
-                await saveQueue();
-            }
-
-            if (pendingWrites.length === 0) {
-                console.error('🚨 Sync Conflict detected. Remote primary has diverged. Resetting local DB...');
-                try {
-                    if (dbInstance) {
-                        try { await dbInstance.closeAsync(); } catch (_) { /* ignore close errors */ }
-                        dbInstance = null;
-                    }
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                    await SQLite.deleteDatabaseAsync(LOCAL_DB_NAME);
-                    console.log('♻️ Local Database Reset completed. It will re-init on next use.');
-                } catch (resetError) {
-                    console.error('Failed to reset DB process:', resetError);
-                }
-            } else {
-                // Only for non-generation conflicts: try flushing first
-                console.warn('⚠️ Sync conflict: trying to flush local changes before reset...');
-                const flushed = await flushPendingWrites();
-                if (!flushed) {
-                    console.warn('🗑️ Flush failed again. Dropping stale writes and resetting DB...');
-                    pendingWrites = [];
-                    await saveQueue();
-                    try {
-                        if (dbInstance) {
-                            try { await dbInstance.closeAsync(); } catch (_) { /* ignore */ }
-                            dbInstance = null;
-                        }
-                        await new Promise(resolve => setTimeout(resolve, 500));
-                        await SQLite.deleteDatabaseAsync(LOCAL_DB_NAME);
-                        console.log('♻️ Local Database Reset completed after failed flush.');
-                    } catch (resetError) {
-                        console.error('Failed to reset DB process:', resetError);
-                    }
-                }
-            }
-        } else if (isLocked) {
-            console.warn('⚠️ Server database is locked. Will retry sync later.');
-        } else if (e.message && (e.message.includes('malformed') || e.message.includes('corrupt'))) {
-            // Corrupted file always needs reset
-            console.error('🚨 Local database corrupted. Resetting...');
-            if (dbInstance) await dbInstance.closeAsync();
-            dbInstance = null;
-            await SQLite.deleteDatabaseAsync(LOCAL_DB_NAME);
-        } else {
-            console.warn('⚠️ Sync failed (network?). Will retry later.');
-        }
+        console.warn('⚠️ Sync error:', e?.message?.substring(0, 80));
     } finally {
         isSyncing = false;
     }
@@ -787,11 +879,16 @@ export async function resetDatabase() {
     try {
         console.log('♻️ Resetting local database...');
         if (dbInstance) {
-            await dbInstance.closeAsync();
+            try { await dbInstance.closeAsync(); } catch (_) { /* ignore */ }
             dbInstance = null;
         }
         await SQLite.deleteDatabaseAsync(LOCAL_DB_NAME);
-        console.log('✅ Local database deleted. Restart app to re-initialize.');
+        // Clear all in-memory and persisted state
+        pendingWrites = [];
+        lastSyncFailedAt = 0;
+        isSyncing = false;
+        await AsyncStorage.removeItem(ASYNC_STORAGE_QUEUE_KEY);
+        console.log('✅ Local database and sync state fully reset. Restart app to re-initialize.');
     } catch (e) {
         console.error('Reset failed:', e);
     }

@@ -10,7 +10,7 @@ export type BannerType = 'offline' | 'online' | 'syncing' | 'info' | null;
 
 interface PendingUpload {
     localUri: string;
-    eventId: number;
+    eventId: string | number;
     fieldName: string;
     timestamp: number;
 }
@@ -20,7 +20,7 @@ interface NetworkContextType {
     bannerType: BannerType;
     bannerMessage: string;
     pendingUploads: PendingUpload[];
-    queueImageUpload: (localUri: string, eventId: number, fieldName?: string) => void;
+    queueImageUpload: (localUri: string, eventId: string | number, fieldName?: string) => void;
     showBanner: (type: BannerType, message: string, autoDismiss?: number) => void;
     dismissBanner: () => void;
 }
@@ -149,7 +149,7 @@ export function NetworkProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
-    const queueImageUpload = (localUri: string, eventId: number, fieldName: string = 'image_url') => {
+    const queueImageUpload = (localUri: string, eventId: string | number, fieldName: string = 'image_url') => {
         const newUpload: PendingUpload = {
             localUri,
             eventId,

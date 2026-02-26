@@ -1,13 +1,15 @@
+import CustomDateTimePicker from '@/components/CustomDateTimePicker';
 import { useAuth } from '@/context/AuthContext';
 import { useDialog } from '@/context/DialogContext';
 import { useNetwork } from '@/context/NetworkContext';
-import { getTransformedUrl, uploadImage } from '@/lib/cloudinary.service';
+import { uploadImage } from '@/lib/cloudinary.service';
 import { sync } from '@/lib/database';
 import { createEvent, Event, getEventById, updateEvent } from '@/lib/events.service';
+import { notifyEventCreated, scheduleEventReminder } from '@/lib/notifications.service';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Calendar, Clock, Eye, Image as ImageIcon, MapPin, Phone, Save, Users, X } from 'lucide-react-native';
+import { Calendar as CalendarIcon, ChevronLeft, Clock, Eye, Image as ImageIcon, MapPin, Phone, Save, Users, X } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
@@ -25,6 +27,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+
+
 export default function CampEditorScreen() {
     const { id } = useLocalSearchParams();
     const { user, role } = useAuth();
@@ -37,6 +41,8 @@ export default function CampEditorScreen() {
     const [submitting, setSubmitting] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
+    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [showTimePicker, setShowTimePicker] = useState(false);
 
     const [form, setForm] = useState<Partial<Event>>({
         title: '',
@@ -57,11 +63,11 @@ export default function CampEditorScreen() {
 
     useEffect(() => {
         if (id) {
-            loadEvent(Number(id));
+            loadEvent(Array.isArray(id) ? id[0] : id);
         }
     }, [id]);
 
-    const loadEvent = async (eventId: number) => {
+    const loadEvent = async (eventId: string | number) => {
         try {
             const event = await getEventById(eventId);
             if (event) {
@@ -75,6 +81,49 @@ export default function CampEditorScreen() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleOpenDatePicker = () => setShowDatePicker(true);
+    const handleOpenTimePicker = () => setShowTimePicker(true);
+
+    const onDateChange = (date: Date) => {
+        setShowDatePicker(false);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
+        setForm(f => ({ ...f, event_date: dateStr }));
+    };
+
+    const onTimeChange = (date: Date) => {
+        setShowTimePicker(false);
+        const hours = date.getHours().toString().padStart(2, '0');
+        const minutes = date.getMinutes().toString().padStart(2, '0');
+        setForm(f => ({ ...f, event_time: `${hours}:${minutes}` }));
+    };
+
+    const formatDisplayDate = (dateStr: string) => {
+        if (!dateStr) return '';
+        try {
+            const d = new Date(dateStr + 'T00:00:00');
+            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        } catch { return dateStr; }
+    };
+
+    const getDateValue = (): Date => {
+        if (form.event_date) {
+            const d = new Date(form.event_date + 'T00:00:00');
+            if (!isNaN(d.getTime())) return d;
+        }
+        return new Date();
+    };
+
+    const getTimeValue = (): Date => {
+        if (form.event_time) {
+            const d = new Date(`2000-01-01 ${form.event_time}`);
+            if (!isNaN(d.getTime())) return d;
+        }
+        return new Date();
     };
 
     const pickImage = async () => {
@@ -120,7 +169,7 @@ export default function CampEditorScreen() {
         setSubmitting(true);
         try {
             if (id) {
-                const success = await updateEvent(Number(id), form, user!.id, role === 'admin');
+                const success = await updateEvent(Array.isArray(id) ? id[0] : id, form, user!.id, role === 'admin');
                 if (success) {
                     if (isOnline) {
                         try {
@@ -149,6 +198,17 @@ export default function CampEditorScreen() {
                 } as any);
 
                 console.log('✅ Camp created with ID:', newId);
+
+                // Fire notification
+                await notifyEventCreated(form.title || 'New Camp', role || 'admin');
+                if (form.location) {
+                    // Import notifyDonorsNearCamp if needed, but it should be in the same service
+                    const { notifyDonorsNearCamp } = require('@/lib/notifications.service');
+                    await notifyDonorsNearCamp(form.title || 'New Camp', form.location);
+                }
+                if (form.event_date) {
+                    await scheduleEventReminder(form.title || 'Blood Drive', form.event_date);
+                }
 
                 // If the image is still a local URI, queue it for upload
                 if (form.image_url && !form.image_url.startsWith('http')) {
@@ -195,7 +255,7 @@ export default function CampEditorScreen() {
             >
                 <View style={styles.headerRow}>
                     <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-                        <ArrowLeft size={24} color="#FFFFFF" />
+                        <ChevronLeft size={24} color="#FFFFFF" />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>{id ? 'Edit Camp' : 'New Camp'}</Text>
                     <TouchableOpacity onPress={() => setShowPreview(true)} style={styles.previewBtn}>
@@ -227,7 +287,7 @@ export default function CampEditorScreen() {
                                     <Text style={styles.imagePlaceholderText}>Uploading to Cloud...</Text>
                                 </View>
                             ) : form.image_url ? (
-                                <Image source={{ uri: getTransformedUrl(form.image_url) }} style={styles.bannerImage} />
+                                <Image source={{ uri: form.image_url }} style={styles.bannerImage} />
                             ) : (
                                 <View style={styles.imagePlaceholder}>
                                     <ImageIcon size={40} color="#8E8E93" />
@@ -250,6 +310,7 @@ export default function CampEditorScreen() {
                                 <TextInput
                                     style={styles.input}
                                     placeholder="e.g. Annual Blood Donation Drive"
+                                    placeholderTextColor="#8E8E93"
                                     value={form.title}
                                     onChangeText={t => setForm(f => ({ ...f, title: t }))}
                                 />
@@ -260,6 +321,7 @@ export default function CampEditorScreen() {
                                 <TextInput
                                     style={styles.input}
                                     placeholder="e.g. Infosys Ltd."
+                                    placeholderTextColor="#8E8E93"
                                     value={form.organization_name}
                                     onChangeText={t => setForm(f => ({ ...f, organization_name: t }))}
                                 />
@@ -268,27 +330,27 @@ export default function CampEditorScreen() {
                             <View style={styles.row}>
                                 <View style={[styles.inputGroup, { flex: 1 }]}>
                                     <Text style={styles.label}>Event Date</Text>
-                                    <View style={styles.inputWithIcon}>
-                                        <Calendar size={18} color="#8E8E93" />
-                                        <TextInput
-                                            style={styles.inputIcon}
-                                            placeholder="YYYY-MM-DD"
-                                            value={form.event_date}
-                                            onChangeText={t => setForm(f => ({ ...f, event_date: t }))}
-                                        />
-                                    </View>
+                                    <TouchableOpacity
+                                        style={styles.inputWithIcon}
+                                        onPress={handleOpenDatePicker}
+                                    >
+                                        <CalendarIcon size={18} color="#E63946" />
+                                        <Text style={[styles.pickerText, !form.event_date && styles.pickerPlaceholder]}>
+                                            {form.event_date ? formatDisplayDate(form.event_date) : 'Select Date'}
+                                        </Text>
+                                    </TouchableOpacity>
                                 </View>
                                 <View style={[styles.inputGroup, { flex: 1 }]}>
                                     <Text style={styles.label}>Time</Text>
-                                    <View style={styles.inputWithIcon}>
-                                        <Clock size={18} color="#8E8E93" />
-                                        <TextInput
-                                            style={styles.inputIcon}
-                                            placeholder="10:00 AM"
-                                            value={form.event_time}
-                                            onChangeText={t => setForm(f => ({ ...f, event_time: t }))}
-                                        />
-                                    </View>
+                                    <TouchableOpacity
+                                        style={styles.inputWithIcon}
+                                        onPress={handleOpenTimePicker}
+                                    >
+                                        <Clock size={18} color="#E63946" />
+                                        <Text style={[styles.pickerText, !form.event_time && styles.pickerPlaceholder]}>
+                                            {form.event_time ? form.event_time : 'Select Time'}
+                                        </Text>
+                                    </TouchableOpacity>
                                 </View>
                             </View>
                         </View>
@@ -300,6 +362,7 @@ export default function CampEditorScreen() {
                                 <TextInput
                                     style={styles.input}
                                     placeholder="Contact Person Name"
+                                    placeholderTextColor="#8E8E93"
                                     value={form.poc_name}
                                     onChangeText={t => setForm(f => ({ ...f, poc_name: t }))}
                                 />
@@ -309,6 +372,7 @@ export default function CampEditorScreen() {
                                 <TextInput
                                     style={styles.input}
                                     placeholder="9XXXXXXXXX"
+                                    placeholderTextColor="#8E8E93"
                                     keyboardType="phone-pad"
                                     value={form.poc_phone}
                                     onChangeText={t => setForm(f => ({ ...f, poc_phone: t }))}
@@ -319,6 +383,7 @@ export default function CampEditorScreen() {
                                 <TextInput
                                     style={styles.input}
                                     placeholder="email@company.com"
+                                    placeholderTextColor="#8E8E93"
                                     keyboardType="email-address"
                                     autoCapitalize="none"
                                     value={form.poc_email}
@@ -336,6 +401,7 @@ export default function CampEditorScreen() {
                                     <TextInput
                                         style={styles.inputIcon}
                                         placeholder="Full address"
+                                        placeholderTextColor="#8E8E93"
                                         value={form.location}
                                         onChangeText={t => setForm(f => ({ ...f, location: t }))}
                                     />
@@ -347,6 +413,7 @@ export default function CampEditorScreen() {
                                     <TextInput
                                         style={styles.input}
                                         placeholder="e.g. Bengaluru"
+                                        placeholderTextColor="#8E8E93"
                                         value={form.city}
                                         onChangeText={t => setForm(f => ({ ...f, city: t }))}
                                     />
@@ -358,6 +425,7 @@ export default function CampEditorScreen() {
                                         <TextInput
                                             style={styles.inputIcon}
                                             placeholder="0"
+                                            placeholderTextColor="#8E8E93"
                                             keyboardType="numeric"
                                             value={String(form.expected_donors || '')}
                                             onChangeText={t => setForm(f => ({ ...f, expected_donors: Number(t) }))}
@@ -374,6 +442,7 @@ export default function CampEditorScreen() {
                                 <TextInput
                                     style={styles.input}
                                     placeholder="Associated Blood Bank"
+                                    placeholderTextColor="#8E8E93"
                                     value={form.blood_bank_name}
                                     onChangeText={t => setForm(f => ({ ...f, blood_bank_name: t }))}
                                 />
@@ -385,6 +454,7 @@ export default function CampEditorScreen() {
                                     <TextInput
                                         style={styles.inputIcon}
                                         placeholder="Blood Bank Contact"
+                                        placeholderTextColor="#8E8E93"
                                         keyboardType="phone-pad"
                                         value={form.blood_bank_contact}
                                         onChangeText={t => setForm(f => ({ ...f, blood_bank_contact: t }))}
@@ -398,6 +468,7 @@ export default function CampEditorScreen() {
                             <TextInput
                                 style={[styles.input, { height: 100, textAlignVertical: 'top', paddingTop: 12 }]}
                                 placeholder="Any special instructions or notes..."
+                                placeholderTextColor="#8E8E93"
                                 multiline
                                 numberOfLines={4}
                                 value={form.notes}
@@ -454,7 +525,7 @@ export default function CampEditorScreen() {
 
                                 <View style={styles.cardMetaRow}>
                                     <View style={styles.cardMetaItem}>
-                                        <Calendar size={14} color="#8E8E93" />
+                                        <CalendarIcon size={14} color="#8E8E93" />
                                         <Text style={styles.cardMetaText}>{form.event_date || 'Date'}</Text>
                                     </View>
                                     <View style={styles.cardMetaItem}>
@@ -475,6 +546,23 @@ export default function CampEditorScreen() {
                     </ScrollView>
                 </View>
             </Modal>
+
+            {/* Custom Modal Date Pickers */}
+            <CustomDateTimePicker
+                visible={showDatePicker}
+                mode="date"
+                onClose={() => setShowDatePicker(false)}
+                onConfirm={onDateChange}
+                initialDate={getDateValue()}
+                minimumDate={id ? undefined : new Date()} // Only restrict future for new camps
+            />
+            <CustomDateTimePicker
+                visible={showTimePicker}
+                mode="time"
+                onClose={() => setShowTimePicker(false)}
+                onConfirm={onTimeChange}
+                initialDate={getTimeValue()}
+            />
         </View>
     );
 }
@@ -525,4 +613,12 @@ const styles = StyleSheet.create({
     cardMetaText: { color: '#48484A', fontSize: 13, fontWeight: '500' },
     cardLocation: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
     previewHint: { fontSize: 13, color: '#8E8E93', textAlign: 'center' },
+    // Date/Time Picker styles
+    pickerText: { flex: 1, fontSize: 16, color: '#1C1C1E', fontWeight: '500' },
+    pickerPlaceholder: { color: '#8E8E93', fontWeight: '400' },
+    pickerModal: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
+    pickerContainer: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 30, borderTopRightRadius: 30, paddingBottom: 40, shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 20 },
+    pickerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#F2F2F7' },
+    pickerTitle: { fontSize: 17, fontWeight: '700', color: '#1C1C1E' },
+    pickerDone: { fontSize: 17, fontWeight: '600', color: '#007AFF' },
 });

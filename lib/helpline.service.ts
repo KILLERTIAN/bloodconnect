@@ -1,8 +1,9 @@
 import { execute, query } from './database';
 import { generateUniqueId } from './id';
+import { notifyHelplineAssigned } from './notifications.service';
 
 export interface HelplineRequest {
-    id: number;
+    id: string | number;
     patient_name: string;
     patient_age?: number;
     blood_group: string;
@@ -19,7 +20,7 @@ export interface HelplineRequest {
     required_till: string;
     is_live: number;
     status: 'open' | 'in_progress' | 'fulfilled' | 'closed';
-    created_by: number;
+    created_by: string | number;
     notes: string;
     created_at: string;
     updated_at: string;
@@ -28,7 +29,7 @@ export interface HelplineRequest {
 }
 
 export interface Donor {
-    id: number;
+    id: string | number;
     name: string;
     phone: string;
     email: string;
@@ -40,7 +41,7 @@ export interface Donor {
     is_available: number;
     gender: string;
     age: number;
-    event_id: number;
+    event_id: string | number;
     created_at: string;
 }
 
@@ -69,7 +70,7 @@ export async function getLiveHelplines(): Promise<HelplineRequest[]> {
     return result.rows as unknown as HelplineRequest[];
 }
 
-export async function createHelplineRequest(data: Partial<HelplineRequest> & { created_by: number }): Promise<number> {
+export async function createHelplineRequest(data: Partial<HelplineRequest> & { created_by: string | number }): Promise<string | number> {
     const newId = generateUniqueId();
     await execute(`
         INSERT INTO helpline_requests (
@@ -88,7 +89,7 @@ export async function createHelplineRequest(data: Partial<HelplineRequest> & { c
     return newId;
 }
 
-export async function makeHelplineLive(id: number): Promise<void> {
+export async function makeHelplineLive(id: string | number): Promise<void> {
     await execute(
         `UPDATE helpline_requests SET is_live = 1, status = 'in_progress', updated_at = datetime('now') WHERE id = ?`,
         [id]
@@ -97,7 +98,7 @@ export async function makeHelplineLive(id: number): Promise<void> {
     await autoAssignVolunteers(id);
 }
 
-export async function autoAssignVolunteers(helplineId: number): Promise<void> {
+export async function autoAssignVolunteers(helplineId: string | number): Promise<void> {
     // 1. Get the minimum assignment count among active volunteers
     const minCountResult = await query(
         `SELECT COUNT(ha.id) as assignment_count
@@ -148,10 +149,17 @@ export async function autoAssignVolunteers(helplineId: number): Promise<void> {
                 helplineId
             ]
         );
+
+        // Also trigger a real push/local notification if the service is available
+        try {
+            await notifyHelplineAssigned(`${h.patient_name} (${h.blood_group})`, 'Volunteer');
+        } catch (e) {
+            console.error('Failed to trigger assignment notification:', e);
+        }
     }
 }
 
-export async function deleteHelplineRequest(id: number, userId: number, isAdmin: boolean): Promise<boolean> {
+export async function deleteHelplineRequest(id: string | number, userId: string | number, isAdmin: boolean): Promise<boolean> {
     const res = await query('SELECT created_by FROM helpline_requests WHERE id = ?', [id]);
     if (res.rows.length === 0) return false;
     const req = res.rows[0] as any;
@@ -162,7 +170,7 @@ export async function deleteHelplineRequest(id: number, userId: number, isAdmin:
     return true;
 }
 
-export async function getAssignedHelplines(volunteerId: number): Promise<any[]> {
+export async function getAssignedHelplines(volunteerId: string | number): Promise<any[]> {
     const result = await query(`
         SELECT h.*, ha.assigned_at, ha.status as assignment_status
         FROM helpline_requests h
@@ -219,7 +227,7 @@ export async function getDonors(filters?: {
     return result.rows as unknown as Donor[];
 }
 
-export async function getDonorsForHelpline(helplineId: number): Promise<Donor[]> {
+export async function getDonorsForHelpline(helplineId: string | number): Promise<Donor[]> {
     // Get helpline details first
     const hResult = await query('SELECT * FROM helpline_requests WHERE id = ?', [helplineId]);
     if (hResult.rows.length === 0) return [];
@@ -245,7 +253,7 @@ export async function getDonorsForHelpline(helplineId: number): Promise<Donor[]>
     return result.rows as unknown as Donor[];
 }
 
-export async function addDonor(data: Partial<Donor> & { event_id?: number }): Promise<number> {
+export async function addDonor(data: Partial<Donor> & { event_id?: string | number }): Promise<string | number> {
     const newId = generateUniqueId();
     await execute(`
         INSERT INTO donors (id, name, phone, email, blood_group, city, location, last_donation_date, gender, age, event_id)
@@ -259,7 +267,7 @@ export async function addDonor(data: Partial<Donor> & { event_id?: number }): Pr
     return newId;
 }
 
-export async function updateDonorAfterDonation(donorId: number, donationDate: string): Promise<void> {
+export async function updateDonorAfterDonation(donorId: string | number, donationDate: string): Promise<void> {
     await execute(
         `UPDATE donors SET last_donation_date = ?, total_donations = total_donations + 1, updated_at = datetime('now') WHERE id = ?`,
         [donationDate, donorId]
@@ -268,9 +276,9 @@ export async function updateDonorAfterDonation(donorId: number, donationDate: st
 
 // Call logs
 export async function logCall(data: {
-    helpline_id: number;
-    volunteer_id: number;
-    donor_id: number;
+    helpline_id: string | number;
+    volunteer_id: string | number;
+    donor_id: string | number;
     outcome: string;
     remarks: string;
     duration_seconds?: number;
@@ -282,7 +290,7 @@ export async function logCall(data: {
     );
 }
 
-export async function getCallLogs(helplineId: number): Promise<any[]> {
+export async function getCallLogs(helplineId: string | number): Promise<any[]> {
     const result = await query(`
         SELECT cl.*, u.name as volunteer_name, d.name as donor_name, d.phone as donor_phone
         FROM call_logs cl
@@ -294,9 +302,20 @@ export async function getCallLogs(helplineId: number): Promise<any[]> {
     return result.rows as any[];
 }
 
-export async function updateHelplineStatus(id: number, status: string): Promise<void> {
+export async function updateHelplineStatus(id: string | number, status: string): Promise<void> {
     await execute(
         `UPDATE helpline_requests SET status = ?, updated_at = datetime('now') WHERE id = ?`,
         [status, id]
+    );
+}
+
+export async function claimHelplineRequest(helplineId: string | number, volunteerId: string | number): Promise<void> {
+    await execute(
+        `INSERT INTO helpline_assignments (id, helpline_id, volunteer_id, status) VALUES (?, ?, ?, 'active')`,
+        [generateUniqueId(), helplineId, volunteerId]
+    );
+    await execute(
+        `UPDATE helpline_requests SET status = 'in_progress', updated_at = datetime('now') WHERE id = ?`,
+        [helplineId]
     );
 }
