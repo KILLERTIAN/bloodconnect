@@ -8,7 +8,8 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "notify-emergency": "node ./scripts/trigger-emergency.js"
   },
   "dependencies": {
     "@cloudinary/transformation-builder-sdk": "^1.21.2",

@@ -8,7 +8,7 @@ LogBox.ignoreLogs([
 import { AuthProvider } from '@/context/AuthContext';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
-import { Stack } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { MD3LightTheme, Provider as PaperProvider } from 'react-native-paper';
@@ -57,7 +57,12 @@ function AppInitializer({ children }: { children: React.ReactNode }) {
 
     const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
       console.log('🔗 Notification Response Received:', response);
-      console.warn('NOTIF TAPPED:', response.notification.request.content.title);
+      const data = response.notification.request.content.data;
+
+      if (data?.url) {
+        console.log(`🚀 Navigating to: ${data.url}`);
+        router.push(data.url as any);
+      }
     });
 
     // Cleanup on unmount

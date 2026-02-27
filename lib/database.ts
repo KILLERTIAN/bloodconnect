@@ -211,21 +211,25 @@ const _IS_CORRUPT = (msg?: string) =>
         msg.includes('SQLITE_CORRUPT') ||
         msg.includes('init_step failed') ||
         msg.includes('not a database') ||
-        msg.includes('Construct')
+        msg.includes('Construct') ||
+        msg.includes('released')
     );
 
 export async function getDB() {
     if (dbInstance) {
-        return dbInstance;
+        // Safety check: is the connection still alive?
+        try {
+            await dbInstance.getAllAsync('SELECT 1');
+            return dbInstance;
+        } catch (e: any) {
+            console.warn('⚠️ Existing DB instance is closed or dead. Re-initializing...', e?.message);
+            dbInstance = null;
+        }
     }
 
     console.log('🔋 Initializing new DB instance...');
-
-    // Load persisted queue on startup
-    if (pendingWrites.length === 0) {
-        await loadQueue();
-    }
-
+    // ... rest of initialization ...
+    // Note: using local openOptions for clarity
     const token = await getTursoToken();
     const openOptions = {
         useNewConnection: true,
@@ -237,64 +241,40 @@ export async function getDB() {
 
     try {
         dbInstance = await SQLite.openDatabaseAsync(LOCAL_DB_NAME, openOptions);
+        // Ensure WAL mode
+        try { await dbInstance.execAsync('PRAGMA journal_mode = WAL;'); } catch (e) { }
 
-        // Safety check: Ensure schema exists immediately upon connection.
-        // IMPORTANT: Only create empty tables here (DDL). Do NOT seed data!
-        // Seeding creates local WAL frames that conflict with syncLibSQL() pulls.
-        // Data seeding happens later in migrateDbIfNeeded() AFTER sync.
+        // Schema check
         try {
             const hasEvents = await dbInstance.getAllAsync<{ name: string }>("SELECT name FROM sqlite_master WHERE type='table' AND name='events'");
             if (hasEvents.length === 0) {
-                console.log('🏗️ Restoring missing schema (tables only, no data) after DB recreate...');
+                console.log('🏗️ Restoring missing schema...');
                 await initializeSchema(dbInstance);
-                await dbInstance.execAsync('PRAGMA user_version = 4');
+                await dbInstance.execAsync('PRAGMA user_version = 5');
             }
         } catch (schemaErr: any) {
-            // If even a simple SELECT fails, the DB is corrupt — reset it
             if (_IS_CORRUPT(schemaErr?.message)) {
-                console.error('🚨 Schema check revealed corrupt DB. Resetting...', schemaErr);
                 dbInstance = await _hardResetAndReopen(openOptions);
-            } else {
-                console.error('Failed to verify/restore schema on getDB:', schemaErr);
-            }
+            } else throw schemaErr;
         }
-
     } catch (error: any) {
         console.error('🚨 Failed to open/initialize DB:', error);
-
         if (_IS_CORRUPT(error?.message)) {
-            console.log('♻️ Database corrupted (open-time). Initiating Hard Reset...');
-            try {
-                dbInstance = await _hardResetAndReopen(openOptions);
-            } catch (recoveryError) {
-                console.error('❌ CRITICAL: Failed to recover database:', recoveryError);
-                throw recoveryError;
-            }
+            dbInstance = await _hardResetAndReopen(openOptions);
         } else {
-            // Non-corruption native error — still wipe and try a clean start
-            console.error('❌ Non-corruption SQL error on open. Attempting clean reopen...');
+            // Clean wipe and retry once
             try {
-                if (dbInstance) { try { await dbInstance.closeAsync(); } catch (_) { } }
+                if (dbInstance) await dbInstance.closeAsync().catch(() => { });
                 dbInstance = null;
                 await SQLite.deleteDatabaseAsync(LOCAL_DB_NAME);
-                console.log('♻️ Emergency hard reset completed after native error.');
                 dbInstance = await SQLite.openDatabaseAsync(LOCAL_DB_NAME, openOptions);
                 await initializeSchema(dbInstance);
-                await dbInstance.execAsync('PRAGMA user_version = 4');
+                await dbInstance.execAsync('PRAGMA user_version = 5');
             } catch (err) {
-                console.error('❌ CRITICAL: Emergency reopen also failed:', err);
+                dbInstance = null;
                 throw err;
             }
         }
-    }
-
-    console.log(`🔌 DB Connection initialized. URL: ${TURSO_URL ? TURSO_URL.substring(0, 15) + '...' : 'NONE'}`);
-
-    // Use getAllAsync for PRAGMAs that return rows
-    try {
-        await dbInstance.getAllAsync('PRAGMA journal_mode = WAL;');
-    } catch (e) {
-        console.log('⚠️ Failed to set WAL mode:', e);
     }
 
     return dbInstance;
@@ -775,13 +755,9 @@ export async function query(sql: string, args: any[] = []) {
         }
     } catch (e: any) {
         console.error('Query Error:', sql, e);
-        if (e?.message?.includes('malformed')) {
-            console.log('🚨 Malformed database detected during query. Initiating Hard Reset...');
-            getDB().then(d => {
-                if (d) d.closeAsync().then(() => {
-                    SQLite.deleteDatabaseAsync(LOCAL_DB_NAME).catch(() => { });
-                }).catch(() => { });
-            }).catch(() => { });
+        if (_IS_CORRUPT(e?.message)) {
+            console.log('🚨 Malformed/Released database detected. Nulling instance for recovery...');
+            dbInstance = null; // Forces next getDB() to re-initialize
         }
         throw e;
     }
@@ -868,13 +844,9 @@ export async function batch(statements: { sql: string; args?: any[] }[]) {
         syncDatabase(db).catch(err => console.log('Background sync error:', err));
     } catch (e: any) {
         console.error('Batch Error:', e);
-        if (e?.message?.includes('malformed')) {
-            console.log('🚨 Malformed database detected during batch. Initiating Hard Reset...');
-            getDB().then(d => {
-                if (d) d.closeAsync().then(() => {
-                    SQLite.deleteDatabaseAsync(LOCAL_DB_NAME).catch(() => { });
-                }).catch(() => { });
-            }).catch(() => { });
+        if (_IS_CORRUPT(e?.message)) {
+            console.log('🚨 Malformed/Released database detected during batch. Nulling instance...');
+            dbInstance = null;
         }
         throw e;
     }

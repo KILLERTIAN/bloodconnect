@@ -1,20 +1,20 @@
 import { execute, query } from './database';
 
 export interface Schedule {
-    id: number;
-    user_id: number;
+    id: string;
+    user_id: string;
     date: string;
     start_time: string;
     end_time: string;
     activity: string;
-    event_id: number | null;
+    event_id: string | null;
     is_locked: number;
     created_at: string;
     user_name?: string;
     event_title?: string;
 }
 
-export async function getUserSchedule(userId: number, month?: string): Promise<Schedule[]> {
+export async function getUserSchedule(userId: string, month?: string): Promise<Schedule[]> {
     let sql = `
         SELECT s.*, u.name as user_name, e.title as event_title
         FROM schedules s
@@ -51,12 +51,12 @@ export async function getAllSchedules(month?: string): Promise<Schedule[]> {
 }
 
 export async function addSchedule(data: {
-    user_id: number;
+    user_id: string;
     date: string;
     start_time: string;
     end_time: string;
     activity: string;
-    event_id?: number;
+    event_id?: string;
 }): Promise<void> {
     // Check if editing is enabled for this user
     const settings = await query(
@@ -74,7 +74,7 @@ export async function addSchedule(data: {
     );
 }
 
-export async function deleteSchedule(id: number, userId: number, isHR: boolean): Promise<void> {
+export async function deleteSchedule(id: string, userId: string, isHR: boolean): Promise<void> {
     const schedule = await query('SELECT * FROM schedules WHERE id = ?', [id]);
     if (schedule.rows.length === 0) return;
     const s = schedule.rows[0] as any;
@@ -84,7 +84,7 @@ export async function deleteSchedule(id: number, userId: number, isHR: boolean):
 }
 
 // HR controls
-export async function setScheduleEditingEnabled(targetUserId: number, enabled: boolean, hrUserId: number): Promise<void> {
+export async function setScheduleEditingEnabled(targetUserId: string, enabled: boolean, hrUserId: string): Promise<void> {
     await execute(`
         INSERT INTO schedule_settings (user_id, editing_enabled, locked_by, locked_at)
         VALUES (?, ?, ?, datetime('now'))

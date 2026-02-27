@@ -4,6 +4,7 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { execute, query } from './database';
 import { generateUniqueId } from './id';
+import { markNotificationAsAlerted } from './sync.service';
 
 // ─── Notification Handler (controls how notifications appear when app is foreground) ─
 
@@ -112,7 +113,7 @@ export async function sendLocalNotification(title: string, body: string, userId?
 
 // Specific notification types for key app events:
 
-export async function notifyEventCreated(eventTitle: string, userId?: string, userRole: string = 'admin') {
+export async function notifyEventCreated(eventTitle: string, eventId: string, userId?: string, userRole: string = 'admin') {
     const isSpecialAction = userRole === 'admin';
     const title = isSpecialAction ? '🚀 Admin: New Camp Approved' : '📅 New Blood Drive Created';
     const body = `"${eventTitle}" has been scheduled. Managers and Volunteers have been notified for coordination.`;
@@ -121,25 +122,33 @@ export async function notifyEventCreated(eventTitle: string, userId?: string, us
         content: {
             title,
             body,
-            data: { type: 'event_created', userId },
+            data: {
+                type: 'event_created',
+                userId,
+                reference_id: eventId,
+                url: `/event-details?id=${eventId}`
+            },
             sound: 'default',
             ...(Platform.OS === 'android' && { channelId: 'updates' }),
         },
         trigger: null,
     });
 
-    await saveNotificationToInbox(title, body, 'event_created', userId);
+    await saveNotificationToInbox(title, body, 'event_created', userId, eventId);
 }
 
 /**
  * Simulates notifying donors in a specific area
  */
-export async function notifyDonorsNearCamp(eventTitle: string, location: string) {
+export async function notifyDonorsNearCamp(eventTitle: string, location: string, eventId: string) {
     await Notifications.scheduleNotificationAsync({
         content: {
             title: '🩸 Blood Donation Camp Near You!',
-            body: `Help save lives! "${eventTitle}" is coming to ${location}. Are you available to donate?`,
-            data: { type: 'near_donor_alert' },
+            body: `Help save lives! "${eventTitle}" is coming to ${location}. Are you available to donate ? `,
+            data: {
+                type: 'near_donor_alert',
+                url: `/event-details?id=${eventId}`
+            },
             sound: 'default',
             ...(Platform.OS === 'android' && { channelId: 'emergency' }),
         },
@@ -150,31 +159,45 @@ export async function notifyDonorsNearCamp(eventTitle: string, location: string)
     });
 }
 
-export async function notifyHelplineRequest(patientName: string, bloodGroup: string, hospital: string, urgency: string, userId?: string) {
+export async function notifyHelplineRequest(patientName: string, bloodGroup: string, hospital: string, urgency: string, userId?: string, helplineId?: string) {
     const isEmergency = urgency === 'critical';
     const title = isEmergency ? '🚨 SOS: Emergency Blood Request!' : '🩸 New Helpline Case';
-    const body = `${patientName} needs ${bloodGroup} blood at ${hospital}. ${isEmergency ? 'CRITICAL — respond now!' : 'Tap to help.'}`;
+    const body = `${patientName} needs ${bloodGroup} blood at ${hospital}. ${isEmergency ? 'CRITICAL — respond now!' : 'Tap to help.'} `;
 
     await Notifications.scheduleNotificationAsync({
         content: {
             title,
             body,
-            data: { type: 'helpline_request', urgency, userId },
+            data: {
+                type: 'helpline_request',
+                urgency,
+                userId,
+                reference_id: helplineId,
+                url: `/request-details?id=${helplineId}`
+            },
             sound: 'default',
             ...(Platform.OS === 'android' && { channelId: isEmergency ? 'emergency' : 'updates' }),
         },
         trigger: null,
     });
 
-    await saveNotificationToInbox(title, body, 'emergency', userId);
+    const notifId = await saveNotificationToInbox(title, body, 'emergency', userId, helplineId);
+
+    // Mark as alerted immediately on this device
+    if (notifId) {
+        await markNotificationAsAlerted(notifId);
+    }
 }
 
-export async function notifyHelplineAssigned(caseTitle: string, assigneeName: string) {
+export async function notifyHelplineAssigned(caseTitle: string, assigneeName: string, helplineId: string) {
     await Notifications.scheduleNotificationAsync({
         content: {
             title: '👤 Case Assigned to You',
             body: `You've been assigned to help with "${caseTitle}". ${assigneeName}, please respond.`,
-            data: { type: 'helpline_assigned' },
+            data: {
+                type: 'helpline_assigned',
+                url: `/request-details?id=${helplineId}`
+            },
             sound: 'default',
             ...(Platform.OS === 'android' && { channelId: 'updates' }),
         },
@@ -269,21 +292,24 @@ export async function clearBadge() {
  */
 export async function saveNotificationToInbox(title: string, body: string, type: string = 'general', userId?: string, referenceId?: string) {
     try {
+        const id = generateUniqueId();
         await execute(
             `INSERT INTO notifications (id, user_id, title, body, type, reference_id, is_read, created_at) 
              VALUES (?, ?, ?, ?, ?, ?, 0, ?)`,
-            [generateUniqueId(), userId || null, title, body, type, referenceId || null, new Date().toISOString()]
+            [id, userId || null, title, body, type, referenceId || null, new Date().toISOString()]
         );
         console.log('📬 Notification saved to local inbox');
+        return id;
     } catch (e) {
         console.error('Failed to save notification to inbox:', e);
+        return null;
     }
 }
 
 export async function getInboxNotifications(userId?: string) {
     try {
         const sql = userId
-            ? 'SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC'
+            ? 'SELECT * FROM notifications WHERE user_id = ? OR user_id IS NULL ORDER BY created_at DESC'
             : 'SELECT * FROM notifications ORDER BY created_at DESC';
         const args = userId ? [userId] : [];
         const result = await query(sql, args);

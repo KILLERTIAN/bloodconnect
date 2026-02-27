@@ -1,8 +1,9 @@
 import { execute, query } from './database';
 import { generateUniqueId } from './id';
+import { markNotificationAsAlerted } from './sync.service';
 
 export interface Event {
-    id: string | number;
+    id: string;
     title: string;
     organization_name: string;
     poc_name: string;
@@ -17,7 +18,7 @@ export interface Event {
     expected_donors: number;
     actual_donations: number;
     status: string;
-    created_by: string | number;
+    created_by: string;
     notes: string;
     image_url?: string;
     followup_done: number;
@@ -49,7 +50,7 @@ export async function getAllEvents(): Promise<Event[]> {
     return events;
 }
 
-export async function getEventsByManager(userId: string | number): Promise<Event[]> {
+export async function getEventsByManager(userId: string): Promise<Event[]> {
     const result = await query(`
         SELECT e.*, u.name as creator_name 
         FROM events e 
@@ -60,7 +61,7 @@ export async function getEventsByManager(userId: string | number): Promise<Event
     return result.rows as unknown as Event[];
 }
 
-export async function getEventById(id: string | number): Promise<Event | null> {
+export async function getEventById(id: string): Promise<Event | null> {
     const result = await query(`
         SELECT e.*, u.name as creator_name 
         FROM events e 
@@ -71,7 +72,7 @@ export async function getEventById(id: string | number): Promise<Event | null> {
     return result.rows[0] as unknown as Event;
 }
 
-export async function createEvent(data: Partial<Event> & { created_by: string | number }): Promise<string | number> {
+export async function createEvent(data: Partial<Event> & { created_by: string }): Promise<string> {
     const newId = generateUniqueId();
     await execute(`
         INSERT INTO events (
@@ -86,10 +87,17 @@ export async function createEvent(data: Partial<Event> & { created_by: string | 
         data.blood_bank_contact || '', data.event_date || '', data.event_time || '',
         data.expected_donors || 0, data.created_by, data.notes || '', data.image_url || ''
     ]);
+    // Mark as already alerted so sync doesn't repeat it locally later
+    try {
+        await markNotificationAsAlerted(newId, 'bloodconnect_last_event_id');
+    } catch (e) {
+        console.error('Failed to mark event as alerted:', e);
+    }
+
     return newId;
 }
 
-export async function updateEvent(id: string | number, data: Partial<Event>, userId: string | number, isAdmin: boolean): Promise<boolean> {
+export async function updateEvent(id: string, data: Partial<Event>, userId: string, isAdmin: boolean): Promise<boolean> {
     // Only creator or admin can edit
     const event = await getEventById(id);
     if (!event) return false;
@@ -108,23 +116,23 @@ export async function updateEvent(id: string | number, data: Partial<Event>, use
     return true;
 }
 
-export async function advanceEventStatus(id: string | number, newStatus: string, userId: string | number, isAdmin: boolean): Promise<boolean> {
+export async function advanceEventStatus(id: string, newStatus: string, userId: string, isAdmin: boolean): Promise<boolean> {
     return updateEvent(id, { status: newStatus } as any, userId, isAdmin);
 }
 
-export async function updateDonationCount(id: string | number, count: number, userId: string | number, isAdmin: boolean): Promise<boolean> {
+export async function updateDonationCount(id: string, count: number, userId: string, isAdmin: boolean): Promise<boolean> {
     return updateEvent(id, { actual_donations: count } as any, userId, isAdmin);
 }
 
 // Volunteer requirements for events
-export async function addVolunteerToEvent(eventId: string | number, volunteerId: string | number, role: string): Promise<void> {
+export async function addVolunteerToEvent(eventId: string, volunteerId: string, role: string): Promise<void> {
     await execute(
         'INSERT OR IGNORE INTO event_volunteers (event_id, volunteer_id, role_in_event) VALUES (?, ?, ?)',
         [eventId, volunteerId, role]
     );
 }
 
-export async function getEventVolunteers(eventId: string | number): Promise<any[]> {
+export async function getEventVolunteers(eventId: string): Promise<any[]> {
     const result = await query(`
         SELECT ev.*, u.name, u.phone, u.email
         FROM event_volunteers ev
@@ -136,8 +144,8 @@ export async function getEventVolunteers(eventId: string | number): Promise<any[
 
 // Reimbursements
 export async function createReimbursement(data: {
-    event_id: number;
-    volunteer_id: number;
+    event_id: string;
+    volunteer_id: string;
     amount: number;
     description: string;
 }): Promise<void> {
@@ -147,7 +155,7 @@ export async function createReimbursement(data: {
     );
 }
 
-export async function getReimbursements(eventId?: number): Promise<any[]> {
+export async function getReimbursements(eventId?: string): Promise<any[]> {
     const sql = eventId
         ? `SELECT r.*, u.name as volunteer_name, e.title as event_title 
            FROM reimbursements r 
@@ -163,14 +171,14 @@ export async function getReimbursements(eventId?: number): Promise<any[]> {
     return result.rows as any[];
 }
 
-export async function updateReimbursementStatus(id: number, status: string, approvedBy: number): Promise<void> {
+export async function updateReimbursementStatus(id: string, status: string, approvedBy: string): Promise<void> {
     await execute(
         `UPDATE reimbursements SET status = ?, approved_by = ?, updated_at = datetime('now') WHERE id = ?`,
         [status, approvedBy, id]
     );
 }
 
-export async function deleteEvent(id: string | number, userId: string | number, isAdmin: boolean): Promise<boolean> {
+export async function deleteEvent(id: string, userId: string, isAdmin: boolean): Promise<boolean> {
     const event = await getEventById(id);
     if (!event) return false;
     if (!isAdmin && event.created_by !== userId) return false;

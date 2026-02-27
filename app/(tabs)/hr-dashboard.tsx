@@ -3,7 +3,7 @@ import { getDonorAvatar } from '@/constants/AvatarMapping';
 import { useAuth } from '@/context/AuthContext';
 import { useDialog } from '@/context/DialogContext';
 import { getAllUsers } from '@/lib/auth.service';
-import { exportDonorsCSV, exportSummaryPDF } from '@/lib/export.service';
+import { exportPersonnelCSV, exportSummaryPDF } from '@/lib/export.service';
 import { getManagerStats, getVolunteerStats, setScheduleEditingEnabled } from '@/lib/hr.service';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -59,7 +59,7 @@ export default function HRDashboardScreen() {
     const [volunteerStats, setVolunteerStats] = useState<any[]>([]);
     const [managerStats, setManagerStats] = useState<any[]>([]);
     const [users, setUsers] = useState<any[]>([]);
-    const [scheduleSettings, setScheduleSettings] = useState<Record<number, boolean>>({});
+    const [scheduleSettings, setScheduleSettings] = useState<Record<string, boolean>>({});
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
@@ -85,16 +85,28 @@ export default function HRDashboardScreen() {
                 const eventsP = vStat.events_participated || mStat.total_camps || 0;
                 const attendedE = vStat.attended_events || mStat.completed_camps || 0;
 
+                // Simple hash function for consistent mock data from string IDs
+                const getHash = (str: string, seed: number) => {
+                    let hash = seed;
+                    for (let i = 0; i < str.length; i++) {
+                        hash = ((hash << 5) - hash) + str.charCodeAt(i);
+                        hash |= 0;
+                    }
+                    return Math.abs(hash);
+                };
+
+                const h = (seed: number) => getHash(u.id, seed);
+
                 return {
                     ...u,
-                    events_participated: eventsP || (12 + (u.id % 20)),
-                    attended_events: attendedE || (8 + (u.id % 15)),
-                    total_camps: mStat.total_camps || (5 + (u.id % 10)),
-                    completed_camps: mStat.completed_camps || (4 + (u.id % 8)),
-                    rating: (4.5 + (u.id % 5) / 10).toFixed(1),
-                    reliability: 85 + (u.id % 15),
-                    activity: 70 + (u.id % 30),
-                    efficiency: 75 + (u.id % 25),
+                    events_participated: eventsP || (12 + (h(1) % 20)),
+                    attended_events: attendedE || (8 + (h(2) % 15)),
+                    total_camps: mStat.total_camps || (5 + (h(3) % 10)),
+                    completed_camps: mStat.completed_camps || (4 + (h(4) % 8)),
+                    rating: (4.5 + (h(5) % 5) / 10).toFixed(1),
+                    reliability: 85 + (h(6) % 15),
+                    activity: 70 + (h(7) % 30),
+                    efficiency: 75 + (h(8) % 25),
                 };
             });
 
@@ -102,7 +114,7 @@ export default function HRDashboardScreen() {
             setManagerStats(ms);
             setUsers(enrichedUsers);
 
-            const settings: Record<number, boolean> = {};
+            const settings: Record<string, boolean> = {};
             us.forEach((u: any) => { settings[u.id] = true; });
             setScheduleSettings(settings);
         } catch (e) {
@@ -122,7 +134,7 @@ export default function HRDashboardScreen() {
         return () => sub.remove();
     }, [loadData]);
 
-    const handleToggleSchedule = async (targetUserId: number, enabled: boolean) => {
+    const handleToggleSchedule = async (targetUserId: string, enabled: boolean) => {
         try {
             await setScheduleEditingEnabled(targetUserId, enabled, user!.id);
             setScheduleSettings(prev => ({ ...prev, [targetUserId]: enabled }));
@@ -164,19 +176,6 @@ export default function HRDashboardScreen() {
                             </TouchableOpacity>
                             <Text style={[styles.reportTitle, { color: '#FFFFFF' }]}>Member Profile</Text>
                             <View style={[styles.headerActions, { marginRight: 20 }]}>
-                                <TouchableOpacity
-                                    style={[styles.headerIconBtn, activeFilterCount > 0 && { backgroundColor: '#FFFFFF' }]}
-                                    onPress={() => setShowFilterSheet(true)}
-                                >
-                                    <View>
-                                        <Filter size={20} color={activeFilterCount > 0 ? '#E63946' : '#FFFFFF'} />
-                                        {activeFilterCount > 0 && (
-                                            <View style={styles.filterBadge}>
-                                                <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
-                                            </View>
-                                        )}
-                                    </View>
-                                </TouchableOpacity>
                                 <TouchableOpacity style={styles.headerIconBtn} onPress={() => { }}>
                                     <Settings size={20} color="#FFFFFF" />
                                 </TouchableOpacity>
@@ -205,21 +204,31 @@ export default function HRDashboardScreen() {
                         <View style={styles.contactCardRound}>
                             <TouchableOpacity style={styles.contactItemBox}>
                                 <View style={[styles.contactCircleIcon, { backgroundColor: '#F0F8FF' }]}>
-                                    <Phone size={18} color="#007AFF" />
+                                    <View style={styles.iconCenter}>
+                                        <Phone size={18} color="#007AFF" />
+                                    </View>
                                 </View>
                                 <Text style={styles.contactItemText}>Call</Text>
                             </TouchableOpacity>
 
+                            <View style={styles.contactDivider} />
+
                             <TouchableOpacity style={styles.contactItemBox}>
                                 <View style={[styles.contactCircleIcon, { backgroundColor: '#F0FFF4' }]}>
-                                    <MessageCircle size={18} color="#34C759" />
+                                    <View style={styles.iconCenter}>
+                                        <MessageCircle size={18} color="#34C759" />
+                                    </View>
                                 </View>
                                 <Text style={styles.contactItemText}>Chat</Text>
                             </TouchableOpacity>
 
+                            <View style={styles.contactDivider} />
+
                             <TouchableOpacity style={styles.contactItemBox}>
                                 <View style={[styles.contactCircleIcon, { backgroundColor: '#FFF0F0' }]}>
-                                    <Mail size={18} color="#E63946" />
+                                    <View style={styles.iconCenter}>
+                                        <Mail size={18} color="#E63946" />
+                                    </View>
                                 </View>
                                 <Text style={styles.contactItemText}>Email</Text>
                             </TouchableOpacity>
@@ -230,7 +239,9 @@ export default function HRDashboardScreen() {
                             <View style={styles.metricSquare}>
                                 <View style={styles.metricSquareHeader}>
                                     <View style={[styles.metricSquareIcon, { backgroundColor: '#F0F8FF' }]}>
-                                        <Target size={16} color="#007AFF" />
+                                        <View style={styles.iconCenter}>
+                                            <Target size={16} color="#007AFF" />
+                                        </View>
                                     </View>
                                 </View>
                                 <Text style={styles.metricSquareVal}>{selectedUser.events_participated || 0}</Text>
@@ -239,7 +250,9 @@ export default function HRDashboardScreen() {
                             <View style={styles.metricSquare}>
                                 <View style={styles.metricSquareHeader}>
                                     <View style={[styles.metricSquareIcon, { backgroundColor: '#FFF0F0' }]}>
-                                        <Heart size={16} color="#E63946" />
+                                        <View style={styles.iconCenter}>
+                                            <Heart size={16} color="#E63946" />
+                                        </View>
                                     </View>
                                 </View>
                                 <Text style={styles.metricSquareVal}>{selectedUser.attended_events || 0}</Text>
@@ -248,13 +261,15 @@ export default function HRDashboardScreen() {
                             <View style={styles.metricSquare}>
                                 <View style={styles.metricSquareHeader}>
                                     <View style={[styles.metricSquareIcon, { backgroundColor: '#F0FFF4' }]}>
-                                        <TrendingUp size={16} color="#34C759" />
+                                        <View style={styles.iconCenter}>
+                                            <TrendingUp size={16} color="#34C759" />
+                                        </View>
                                     </View>
                                 </View>
                                 <Text style={styles.metricSquareVal}>
                                     {selectedUser.events_participated > 0
                                         ? Math.min((selectedUser.attended_events / selectedUser.events_participated) * 100, 100).toFixed(0)
-                                        : (85 + (selectedUser.id % 15))}%
+                                        : 0}%
                                 </Text>
                                 <Text style={styles.metricSquareLab}>Yield Rate</Text>
                             </View>
@@ -262,8 +277,8 @@ export default function HRDashboardScreen() {
 
                         <Text style={[styles.sectionHeaderTitle, { marginTop: 10 }]}>Analysis</Text>
                         <View style={styles.ratingOverview}>
-                            <View style={styles.ratingCircle}>
-                                <Text style={styles.ratingBigText}>{selectedUser.rating || '4.8'}</Text>
+                            <View style={[styles.ratingCircle, { borderColor: theme.color + '20' }]}>
+                                <Text style={[styles.ratingBigText, { color: theme.color }]}>{selectedUser.rating || '4.8'}</Text>
                                 <Text style={styles.ratingSmallText}>Avg Score</Text>
                             </View>
                             <View style={styles.ratingBreakdown}>
@@ -457,7 +472,7 @@ export default function HRDashboardScreen() {
         <View style={{ gap: 12 }}>
             <Text style={styles.sectionHeaderTitle}>Administration</Text>
             {[
-                { label: 'Bulk Export Data', icon: Download, color: '#007AFF', onPress: () => exportDonorsCSV() },
+                { label: 'Bulk Export Data', icon: Download, color: '#007AFF', onPress: () => exportPersonnelCSV() },
                 { label: 'HR Settings', icon: Settings, color: '#5856D6' },
                 { label: 'Audit Logs', icon: Shield, color: '#1C1C1E' },
                 { label: 'Announcements', icon: Bell, color: '#FF9500' },
@@ -785,9 +800,9 @@ const styles = StyleSheet.create({
     metricSquareVal: { fontSize: 22, fontWeight: '900', color: '#1C1C1E', marginBottom: 2 },
     metricSquareLab: { fontSize: 11, color: '#8E8E93', fontWeight: '700', textAlign: 'center' },
 
-    ratingOverview: { backgroundColor: '#FFFFFF', padding: 20, borderRadius: 28, flexDirection: 'row', alignItems: 'center', gap: 20, marginBottom: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 2 },
-    ratingCircle: { width: 80, height: 80, borderRadius: 40, borderWidth: 4, borderColor: '#FFEBEA', justifyContent: 'center', alignItems: 'center' },
-    ratingBigText: { fontSize: 22, fontWeight: '900', color: '#E63946' },
+    ratingOverview: { backgroundColor: '#FFFFFF', padding: 24, borderRadius: 28, flexDirection: 'row', alignItems: 'center', gap: 24, marginBottom: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 2 },
+    ratingCircle: { width: 84, height: 84, borderRadius: 42, borderWidth: 6, justifyContent: 'center', alignItems: 'center' },
+    ratingBigText: { fontSize: 24, fontWeight: '900' },
     ratingSmallText: { fontSize: 9, color: '#8E8E93', fontWeight: '700', textAlign: 'center', marginTop: -2 },
     ratingBreakdown: { flex: 1, gap: 12 },
     ratingBarRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -833,9 +848,9 @@ const styles = StyleSheet.create({
 
     contactCardRound: { flexDirection: 'row', backgroundColor: '#FFFFFF', borderRadius: 24, paddingVertical: 16, paddingHorizontal: 10, marginBottom: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.08, shadowRadius: 24, elevation: 8 },
     contactItemBox: { flex: 1, alignItems: 'center', gap: 8 },
-    contactCircleIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#F8F9FA', justifyContent: 'center', alignItems: 'center' },
+    contactCircleIcon: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
     contactItemText: { fontSize: 12, fontWeight: '700', color: '#8E8E93' },
-    contactDivider: { width: 1, backgroundColor: '#F2F2F7', marginVertical: 4 },
+    contactDivider: { width: 1, backgroundColor: '#F2F2F7', marginVertical: 12 },
 
     metricSquareIcon: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
     downloadReportGradient: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 12, height: 56, borderRadius: 20 },
@@ -847,4 +862,5 @@ const styles = StyleSheet.create({
     activityDateText: { fontSize: 11, color: '#8E8E93', fontWeight: '600' },
     activityScoreWrap: { backgroundColor: '#F2F2F7', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
     activityScoreText: { fontSize: 12, fontWeight: '900' },
+    iconCenter: { justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' },
 });

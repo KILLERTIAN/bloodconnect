@@ -1,14 +1,15 @@
 import { query } from '@/lib/database';
-import * as FileSystem from 'expo-file-system';
 
 // We catch errors during import for native modules that might be missing in stale builds
 let Print: any;
 let Sharing: any;
+let FileSystem: any;
 try {
     Print = require('expo-print');
     Sharing = require('expo-sharing');
+    FileSystem = require('expo-file-system');
 } catch (e) {
-    console.warn('⚠️ Native export modules (Print/Sharing) not found. Rebuild may be required.');
+    console.warn('⚠️ Native export modules (Print/Sharing/FileSystem) not found. Rebuild may be required.');
 }
 
 // ─── CSV Export ──────────────────────────────────────────────────────
@@ -51,6 +52,15 @@ export async function exportDonorsCSV() {
     const headers = ['name', 'phone', 'email', 'blood_group', 'city', 'location', 'last_donation_date', 'total_donations', 'gender', 'age', 'is_available'];
     const csv = toCSV(headers, donors);
     await shareCSV('BloodConnect_Donors.csv', csv);
+}
+
+export async function exportPersonnelCSV() {
+    const users = await queryRows(
+        "SELECT name, email, role, is_active FROM users WHERE role IN ('volunteer', 'helpline', 'outreach', 'manager') ORDER BY role, name"
+    );
+    const headers = ['name', 'email', 'role', 'is_active'];
+    const csv = toCSV(headers, users);
+    await shareCSV('BloodConnect_Personnel.csv', csv);
 }
 
 export async function exportHelplineCSV() {
@@ -194,7 +204,7 @@ export async function exportSummaryPDF() {
 async function shareCSV(filename: string, content: string) {
     try {
         const fileUri = `${(FileSystem as any).documentDirectory}${filename}`;
-        await (FileSystem as any).writeAsStringAsync(fileUri, content, { encoding: (FileSystem as any).EncodingType?.UTF8 || 'utf8' });
+        await (FileSystem as any).writeAsStringAsync(fileUri, content, { encoding: (FileSystem as any).EncodingType.UTF8 });
 
         if (Sharing && await Sharing.isAvailableAsync()) {
             await Sharing.shareAsync(fileUri, {
@@ -202,8 +212,11 @@ async function shareCSV(filename: string, content: string) {
                 dialogTitle: `Export ${filename}`,
                 UTI: 'public.comma-separated-values-text'
             });
+        } else {
+            alert('Sharing is not available on this device.');
         }
     } catch (error) {
         console.error('CSV Export Error:', error);
+        alert('Failed to export CSV: ' + (error as any).message);
     }
 }
