@@ -28,8 +28,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { DeviceEventEmitter, Dimensions, RefreshControl, ScrollView, StatusBar, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
 import Animated, {
-    FadeInDown,
-    FadeInRight,
     useSharedValue,
     withRepeat,
     withSequence,
@@ -44,17 +42,7 @@ const { width, height } = Dimensions.get('window');
 const BackgroundDoodles = () => (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
         <Svg height={height} width={width} style={StyleSheet.absoluteFill}>
-            {/* Top Right Wavy Layers */}
-            <Path
-                d={`M${width * 0.4} 0 Q${width * 0.7} 100 ${width} 40 L${width} 0 Z`}
-                fill="#E63946"
-                fillOpacity={0.07}
-            />
-            <Path
-                d={`M${width * 0.6} 0 Q${width * 0.8} 180 ${width} 120 L${width} 0 Z`}
-                fill="#E63946"
-                fillOpacity={0.12}
-            />
+
 
             {/* Bottom Wavy Layers */}
             <Path
@@ -249,10 +237,7 @@ export default function DashboardScreen() {
                     {renderHeader(config.title, config.sub, userAvatar)}
                     <NetworkBanner />
 
-                    <Animated.View
-                        entering={FadeInDown.delay(200).duration(800)}
-                        style={styles.heroSection}
-                    >
+                    <View style={styles.heroSection}>
                         <LinearGradient
                             colors={['#E53935', '#C62828']}
                             start={{ x: 0, y: 0 }}
@@ -309,13 +294,10 @@ export default function DashboardScreen() {
                                 </View>
                             </View>
                         </LinearGradient>
-                    </Animated.View>
+                    </View>
 
                     <View style={styles.statsStripContainerPremium}>
-                        <Animated.View
-                            entering={FadeInRight.delay(400).duration(800)}
-                            style={styles.statsRowPremium}
-                        >
+                        <View style={styles.statsRowPremium}>
                             {[
                                 { val: '12', lab: 'Lives Saved', icon: Heart, color: '#FF2D55' },
                                 { val: '5', lab: 'Donations', icon: Droplet, color: '#007AFF' },
@@ -329,11 +311,11 @@ export default function DashboardScreen() {
                                     <Text style={styles.statLabPremium}>{stat.lab}</Text>
                                 </View>
                             ))}
-                        </Animated.View>
+                        </View>
                     </View>
 
                     <View style={styles.actionGridPremium}>
-                        <Animated.View entering={FadeInDown.delay(600).duration(800)} style={{ flex: 1 }}>
+                        <View style={{ flex: 1 }}>
                             <TouchableOpacity
                                 style={styles.actionCardPremium}
                                 activeOpacity={0.8}
@@ -352,9 +334,9 @@ export default function DashboardScreen() {
                                     <ChevronRight size={16} color="#007AFF" />
                                 </View>
                             </TouchableOpacity>
-                        </Animated.View>
+                        </View>
 
-                        <Animated.View entering={FadeInDown.delay(750).duration(800)} style={{ flex: 1 }}>
+                        <View style={{ flex: 1 }}>
                             <TouchableOpacity style={styles.actionCardPremium} activeOpacity={0.8}>
                                 <LinearGradient
                                     colors={['#FFF9F0', '#FFFFFF']}
@@ -369,7 +351,7 @@ export default function DashboardScreen() {
                                     <ChevronRight size={16} color="#FF9500" />
                                 </View>
                             </TouchableOpacity>
-                        </Animated.View>
+                        </View>
                     </View>
 
                     <View style={styles.sectionContainer}>
@@ -534,10 +516,12 @@ export default function DashboardScreen() {
             <View style={styles.adminContainer}>
                 {renderHeader(config.title, config.sub, userAvatar)}
                 <NetworkBanner />
-                <TouchableOpacity style={styles.searchBar} activeOpacity={0.9}>
-                    <Search size={20} color="#8E8E93" />
-                    <Text style={styles.searchText}>Search cases, donors or hubs...</Text>
-                </TouchableOpacity>
+                <View>
+                    <TouchableOpacity style={styles.searchBar} activeOpacity={0.9}>
+                        <Search size={20} color="#8E8E93" />
+                        <Text style={styles.searchText}>Search cases, donors or hubs...</Text>
+                    </TouchableOpacity>
+                </View>
 
                 <View style={styles.emergencyContainer}>
                     <View style={styles.sectionHeader}>
@@ -643,9 +627,11 @@ export default function DashboardScreen() {
 
     return (
         <View style={styles.container}>
+            <BackgroundDoodles />
             <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
             <ScrollView
                 showsVerticalScrollIndicator={false}
+                bounces={false}
                 contentContainerStyle={styles.scrollContent}
                 refreshControl={
                     <RefreshControl
@@ -938,15 +924,9 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         paddingHorizontal: 20,
         alignItems: 'center',
-        backgroundColor: '#FFFFFF',
-        borderBottomLeftRadius: 28,
-        borderBottomRightRadius: 28,
+        backgroundColor: 'transparent',
         paddingBottom: 12,
         marginBottom: 10,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.02,
-        shadowRadius: 10,
     },
     headerRight: {
         flexDirection: 'row',

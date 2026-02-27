@@ -1,4 +1,5 @@
 import { type SQLiteDatabase } from 'expo-sqlite';
+import { hashPassword } from './crypto';
 import { generateUniqueId } from './id';
 
 export async function initializeSchema(db: SQLiteDatabase) {
@@ -10,7 +11,7 @@ export async function initializeSchema(db: SQLiteDatabase) {
             email TEXT UNIQUE NOT NULL,
             phone TEXT,
             password_hash TEXT NOT NULL,
-            role TEXT NOT NULL CHECK(role IN ('admin','manager','hr','outreach','volunteer','helpline')),
+            role TEXT NOT NULL CHECK(role IN ('admin','manager','hr','outreach','volunteer','helpline','donor')),
             is_active INTEGER DEFAULT 1,
             avatar_url TEXT,
             created_at TEXT DEFAULT (datetime('now')),
@@ -237,16 +238,22 @@ export async function seedDefaultUsers(db: SQLiteDatabase) {
     ];
 
     console.log('Ensure default users exist and have updated avatars...');
-    for (const [name, email, phone, password_hash, role, avatar_url] of users) {
+    for (const [name, email, phone, plainPassword, role, avatar_url] of users) {
+        const hashedPassword = await hashPassword(plainPassword);
         // Try inserting first
         await db.runAsync(
             `INSERT OR IGNORE INTO users(id, name, email, phone, password_hash, role, avatar_url) VALUES(?, ?, ?, ?, ?, ?, ?)`,
-            [generateUniqueId(), name, email, phone, password_hash, role, avatar_url]
+            [generateUniqueId(), name, email, phone, hashedPassword, role, avatar_url]
         );
         // Force update avatar_url to match the latest seeded values
         await db.runAsync(
             `UPDATE users SET avatar_url = ? WHERE email = ?`,
             [avatar_url, email]
+        );
+        // Also update password if it changed (mostly for dev/seeding updates)
+        await db.runAsync(
+            `UPDATE users SET password_hash = ? WHERE email = ?`,
+            [hashedPassword, email]
         );
     }
 }

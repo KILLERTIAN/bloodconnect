@@ -85,7 +85,7 @@ export default function LoginScreen() {
     const handleDonorLogin = () => {
         // Donor login — uses role-selection flow
         login('donor', {
-            id: 0,
+            id: 'demo-donor-001',
             name: 'Om',
             email: 'donor@bloodconnect.org',
             phone: '',
@@ -224,6 +224,13 @@ export default function LoginScreen() {
                                         )}
                                     </LinearGradient>
                                 </TouchableOpacity>
+
+                                <View style={styles.registerLinkContainer}>
+                                    <Text style={styles.noAccountText}>Don't have an account?</Text>
+                                    <TouchableOpacity onPress={() => router.push('/register')}>
+                                        <Text style={styles.registerLinkText}>Register as Donor/Volunteer</Text>
+                                    </TouchableOpacity>
+                                </View>
                             </View>
 
                             {/* ── Quick Access (Dev) ── */}
@@ -293,12 +300,22 @@ export default function LoginScreen() {
                                         style={styles.donorLoginGradient}
                                     >
                                         <Droplet size={20} color="#FFFFFF" fill="#FFFFFF" />
-                                        <Text style={styles.donorLoginText}>Enter as Donor</Text>
+                                        <Text style={styles.donorLoginText}>Guest Access</Text>
                                     </LinearGradient>
                                 </TouchableOpacity>
 
+                                <TouchableOpacity
+                                    style={[styles.donorLoginBtn, { marginTop: 10 }]}
+                                    onPress={() => router.push('/register')}
+                                    activeOpacity={0.85}
+                                >
+                                    <View style={styles.registerOutlineBtn}>
+                                        <Text style={styles.registerOutlineText}>Create Donor Account</Text>
+                                    </View>
+                                </TouchableOpacity>
+
                                 <Text style={styles.donorNote}>
-                                    No account needed · View nearby camps · Track your donations
+                                    Save your profile · Track impact · Get personalized alerts
                                 </Text>
                             </View>
                         </View>
@@ -307,7 +324,7 @@ export default function LoginScreen() {
                     <View style={{ height: insets.bottom + 20 }} />
                 </ScrollView>
             </KeyboardAvoidingView>
-        </View>
+        </View >
     );
 }
 
@@ -432,4 +449,9 @@ const styles = StyleSheet.create({
     },
     donorLoginText: { color: '#FFFFFF', fontSize: 17, fontWeight: '800' },
     donorNote: { fontSize: 12, color: '#8E8E93', fontWeight: '600', textAlign: 'center', lineHeight: 18 },
+    registerLinkContainer: { marginTop: 24, alignItems: 'center', borderTopWidth: 1, borderTopColor: '#F2F2F7', paddingTop: 16 },
+    noAccountText: { fontSize: 13, color: '#8E8E93', fontWeight: '600' },
+    registerLinkText: { fontSize: 14, color: '#FF3B30', fontWeight: '800', marginTop: 4 },
+    registerOutlineBtn: { height: 54, borderRadius: 18, borderWidth: 2, borderColor: '#FF3B30', justifyContent: 'center', alignItems: 'center' },
+    registerOutlineText: { color: '#FF3B30', fontSize: 16, fontWeight: '800' },
 });

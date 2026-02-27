@@ -19,7 +19,7 @@ import {
     Zap
 } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
-import { Alert, DeviceEventEmitter, FlatList, ScrollView, StatusBar, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Alert, DeviceEventEmitter, FlatList, Platform, ScrollView, StatusBar, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Card, Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -191,7 +191,7 @@ export default function NotificationsScreen() {
         <View style={styles.container}>
             <StatusBar barStyle="dark-content" />
 
-            <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+            <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? insets.top * 0.4 : insets.top + 10 }]}>
                 <View style={styles.headerTop}>
                     <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
                         <ChevronLeft size={28} color="#1C1C1E" />
@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 24,
-        marginBottom: 16,
+        marginBottom: 8,
     },
     backBtn: {
         width: 48,

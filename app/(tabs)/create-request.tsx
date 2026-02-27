@@ -473,29 +473,34 @@ export default function CreateRequestScreen() {
                                             <Text style={styles.urgencyBadgeText}>{getUrgencyKey().toUpperCase()} FLAG</Text>
                                         </View>
                                     </View>
-                                    <View style={styles.urgencySliderContainer}>
-                                        <TouchableOpacity
-                                            activeOpacity={1}
-                                            style={styles.sliderTrack}
-                                            onPress={(e) => {
-                                                const { locationX } = e.nativeEvent;
-                                                const newUrgency = Math.round((locationX / (width - 88)) * 100);
-                                                setUrgency(Math.max(0, Math.min(100, newUrgency)));
-                                            }}
-                                        >
-                                            <LinearGradient
-                                                colors={['#FFCC00', '#FF3B30']}
-                                                start={{ x: 0, y: 0 }}
-                                                end={{ x: 1, y: 0 }}
-                                                style={[styles.sliderFill, { width: `${urgency}%` }]}
-                                            />
-                                            <View style={[styles.sliderThumb, { left: `${urgency}%`, marginLeft: -14 }]} />
-                                        </TouchableOpacity>
-                                        <View style={styles.sliderLabels}>
-                                            <TouchableOpacity onPress={() => setUrgency(10)}><Text style={[styles.sliderLabelText, urgency < 33 && styles.activeSliderLabel]}>Stable</Text></TouchableOpacity>
-                                            <TouchableOpacity onPress={() => setUrgency(50)}><Text style={[styles.sliderLabelText, urgency >= 33 && urgency < 66 && styles.activeSliderLabel]}>Urgent</Text></TouchableOpacity>
-                                            <TouchableOpacity onPress={() => setUrgency(90)}><Text style={[styles.sliderLabelText, urgency >= 66 && styles.activeSliderLabel]}>SOS</Text></TouchableOpacity>
-                                        </View>
+                                    <View style={styles.urgencyGrid}>
+                                        {[
+                                            { label: 'Stable', value: 10, color: '#34C759', sub: 'Normal' },
+                                            { label: 'Urgent', value: 50, color: '#FF9500', sub: 'Medium' },
+                                            { label: 'SOS', value: 90, color: '#FF3B30', sub: 'Critical' }
+                                        ].map((level) => {
+                                            const isActive = (level.value === 10 && urgency < 33) ||
+                                                (level.value === 50 && urgency >= 33 && urgency < 66) ||
+                                                (level.value === 90 && urgency >= 66);
+                                            return (
+                                                <TouchableOpacity
+                                                    key={level.label}
+                                                    onPress={() => setUrgency(level.value)}
+                                                    activeOpacity={0.7}
+                                                    style={[
+                                                        styles.urgencyChip,
+                                                        isActive && { backgroundColor: level.color, borderColor: level.color, elevation: 4, shadowColor: level.color, shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } }
+                                                    ]}
+                                                >
+                                                    <Text style={[styles.urgencyChipLabel, isActive && styles.urgencyChipLabelActive]}>
+                                                        {level.label}
+                                                    </Text>
+                                                    <Text style={[styles.urgencyChipSub, isActive && styles.urgencyChipSubActive]}>
+                                                        {level.sub}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            );
+                                        })}
                                     </View>
                                 </View>
                             ) : (
@@ -646,13 +651,12 @@ const styles = StyleSheet.create({
     urgencyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
     urgencyBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFEBEA', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, gap: 6 },
     urgencyBadgeText: { fontSize: 10, fontWeight: '900', color: '#FF3B30' },
-    urgencySliderContainer: { marginBottom: 10 },
-    sliderTrack: { height: 6, backgroundColor: '#F2F2F7', borderRadius: 3, position: 'relative' },
-    sliderFill: { position: 'absolute', height: 6, borderRadius: 3 },
-    sliderThumb: { position: 'absolute', top: -10, width: 24, height: 24, borderRadius: 12, backgroundColor: '#FFFFFF', borderWidth: 3, borderColor: '#FF3B30' },
-    sliderLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
-    sliderLabelText: { fontSize: 11, fontWeight: '700', color: '#8E8E93' },
-    activeSliderLabel: { color: '#FF3B30', fontWeight: '900' },
+    urgencyGrid: { flexDirection: 'row', gap: 10 },
+    urgencyChip: { flex: 1, height: 64, borderRadius: 16, backgroundColor: '#F2F2F7', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'transparent' },
+    urgencyChipLabel: { fontSize: 15, fontWeight: '900', color: '#1C1C1E' },
+    urgencyChipLabelActive: { color: '#FFFFFF' },
+    urgencyChipSub: { fontSize: 10, fontWeight: '700', color: '#8E8E93', marginTop: 2, letterSpacing: 0.5, textTransform: 'uppercase' },
+    urgencyChipSubActive: { color: 'rgba(255, 255, 255, 0.8)' },
     notesInput: { backgroundColor: 'transparent', fontSize: 14, fontWeight: '500', padding: 0 },
     footer: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 20, paddingTop: 16, backgroundColor: 'rgba(255, 255, 255, 0.95)', borderTopWidth: 1, borderTopColor: '#F2F2F7' },
     mainActionBtn: { borderRadius: 20, overflow: 'hidden' },

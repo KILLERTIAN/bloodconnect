@@ -176,11 +176,7 @@ export default function ProfileScreen() {
                                             <ActivityIndicator color="#FFFFFF" />
                                         </View>
                                     )}
-                                    {!uploading && (
-                                        <View style={styles.cameraBadge}>
-                                            <Camera size={12} color="#FFFFFF" />
-                                        </View>
-                                    )}
+
                                 </TouchableOpacity>
                                 <View style={[styles.verifyBadge, { backgroundColor: '#34C759' }]}>
                                     <ShieldCheck size={14} color="#FFFFFF" strokeWidth={3} />

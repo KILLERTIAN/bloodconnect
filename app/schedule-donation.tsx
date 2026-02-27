@@ -22,14 +22,26 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
-const DATES = [
-    { day: 'Tue', date: '20', month: 'Oct' },
-    { day: 'Wed', date: '21', month: 'Oct' },
-    { day: 'Thu', date: '22', month: 'Oct' },
-    { day: 'Fri', date: '23', month: 'Oct' },
-    { day: 'Sat', date: '24', month: 'Oct' },
-    { day: 'Sun', date: '25', month: 'Oct' },
-];
+const generateDates = () => {
+    const dates = [];
+    const today = new Date();
+    const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    for (let i = 0; i < 30; i++) {
+        const d = new Date(today);
+        d.setDate(today.getDate() + i);
+        dates.push({
+            id: d.toISOString().split('T')[0],
+            day: days[d.getDay()],
+            date: d.getDate().toString(),
+            month: months[d.getMonth()],
+        });
+    }
+    return dates;
+};
+
+const DATES = generateDates();
 
 const SLOTS = ['Morning', 'Afternoon', 'Evening'];
 
@@ -48,7 +60,7 @@ const HOSPITALS = [
 export default function ScheduleDonationScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
-    const [selectedDate, setSelectedDate] = useState('21');
+    const [selectedDate, setSelectedDate] = useState(DATES[0].id);
     const [selectedSlot, setSelectedSlot] = useState('Morning');
     const [selectedTime, setSelectedTime] = useState('10:00 AM');
     const [selectedHospital, setSelectedHospital] = useState('1');
@@ -92,13 +104,13 @@ export default function ScheduleDonationScreen() {
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateList}>
                         {DATES.map((item) => (
                             <TouchableOpacity
-                                key={item.date}
-                                style={[styles.dateItem, selectedDate === item.date && styles.selectedDateItem]}
-                                onPress={() => setSelectedDate(item.date)}
+                                key={item.id}
+                                style={[styles.dateItem, selectedDate === item.id && styles.selectedDateItem]}
+                                onPress={() => setSelectedDate(item.id)}
                                 activeOpacity={0.8}
                             >
-                                <Text style={[styles.dateDay, selectedDate === item.date && styles.selectedDateText]}>{item.day}</Text>
-                                <Text style={[styles.dateNumber, selectedDate === item.date && styles.selectedDateText]}>{item.date}</Text>
+                                <Text style={[styles.dateDay, selectedDate === item.id && styles.selectedDateText]}>{item.day}</Text>
+                                <Text style={[styles.dateNumber, selectedDate === item.id && styles.selectedDateText]}>{item.date}</Text>
                             </TouchableOpacity>
                         ))}
                     </ScrollView>

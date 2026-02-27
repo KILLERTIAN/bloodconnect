@@ -405,6 +405,35 @@ export async function migrateDbIfNeeded(db: SQLite.SQLiteDatabase) {
             currentVersion = 4;
         }
 
+        if (currentVersion < 5) {
+            console.log('Migrating to version 5: Updating users table role constraint to allow "donor"...');
+            try {
+                await db.execAsync('PRAGMA foreign_keys=OFF;');
+                await db.execAsync(`
+                    CREATE TABLE users_new (
+                        id TEXT PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        email TEXT UNIQUE NOT NULL,
+                        phone TEXT,
+                        password_hash TEXT NOT NULL,
+                        role TEXT NOT NULL CHECK(role IN ('admin','manager','hr','outreach','volunteer','helpline','donor')),
+                        is_active INTEGER DEFAULT 1,
+                        avatar_url TEXT,
+                        created_at TEXT DEFAULT (datetime('now')),
+                        updated_at TEXT DEFAULT (datetime('now'))
+                    );
+                `);
+                await db.execAsync('INSERT INTO users_new (id, name, email, phone, password_hash, role, is_active, avatar_url, created_at, updated_at) SELECT id, name, email, phone, password_hash, role, is_active, avatar_url, created_at, updated_at FROM users;');
+                await db.execAsync('DROP TABLE users;');
+                await db.execAsync('ALTER TABLE users_new RENAME TO users;');
+                await db.execAsync('PRAGMA foreign_keys=ON;');
+            } catch (e) {
+                console.error('Migration v5 failed:', e);
+            }
+            await db.execAsync('PRAGMA user_version = 5');
+            currentVersion = 5;
+        }
+
         console.log('✨ DB Schema is fully up to date and cleaned.');
 
         // IMPORTANT: Only seed data if the database is truly empty.
