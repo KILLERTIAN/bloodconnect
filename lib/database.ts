@@ -680,6 +680,9 @@ export async function syncDatabase(db: any) {
                     if (pendingWrites.length === 0) {
                         await _cleanupDanglingLocalRecords(db, TURSO_URL, token);
                     }
+
+                    // Notify UI that data has been updated
+                    DeviceEventEmitter.emit('db_synced');
                 } catch (syncErr: any) {
                     // syncLibSQL failed — fall through to HTTP fallback
                     const msg = syncErr?.message?.substring(0, 100) || 'unknown';

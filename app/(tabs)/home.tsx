@@ -4,6 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { sync } from '@/lib/database';
 import { Event, getAllEvents, getEventsByManager } from '@/lib/events.service';
 import { getAssignedHelplines, getDonors, getLiveHelplines, HelplineRequest } from '@/lib/helpline.service';
+import { sendLocalNotification } from '@/lib/notifications.service';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -211,6 +212,10 @@ export default function DashboardScreen() {
                     style={styles.notificationBtn}
                     activeOpacity={0.7}
                     onPress={() => router.push('/notifications')}
+                    onLongPress={() => {
+                        console.log('🔔 Dev Shortcut: Navigating to Notification Tester');
+                        router.push('/test-notifications' as any);
+                    }}
                 >
                     <Bell size={22} color="#1C1C1E" strokeWidth={2.5} />
                     <View style={styles.notificationDot} />
@@ -417,7 +422,15 @@ export default function DashboardScreen() {
                     {renderHeader(config.title, config.sub, userAvatar)}
                     <NetworkBanner />
                     <View style={styles.missionContainer}>
-                        <Text style={styles.sectionTitle}>Your Active Missions</Text>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                            <Text style={styles.sectionTitle}>Your Active Missions</Text>
+                            <TouchableOpacity
+                                style={{ backgroundColor: '#F2F2F7', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }}
+                                onPress={() => sendLocalNotification('🚨 SOS: Emergency Test', 'This is a test notification to verify system is working.')}
+                            >
+                                <Text style={{ fontSize: 10, fontWeight: '800', color: '#007AFF' }}>TEST ALERT</Text>
+                            </TouchableOpacity>
+                        </View>
                         {assignedMissions.length > 0 ? (
                             assignedMissions.map((mission, idx) => (
                                 <TouchableOpacity key={idx} activeOpacity={0.9} onPress={() => router.push({ pathname: '/request-details', params: { id: mission.id } })}>

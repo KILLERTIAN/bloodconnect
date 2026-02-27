@@ -4,7 +4,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 export type UserRole = 'donor' | 'volunteer' | 'admin' | 'helpline' | 'manager' | 'hr' | 'outreach' | null;
 
 export interface AuthUser {
-    id: number;
+    id: string;
     name: string;
     email: string;
     phone: string;

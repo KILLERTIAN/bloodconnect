@@ -1,150 +1,140 @@
 import { useAuth } from '@/context/AuthContext';
+import { getDB, syncDatabase } from '@/lib/database';
+import {
+    deleteNotificationFromInbox,
+    getInboxNotifications,
+    seedDummyNotifications
+} from '@/lib/notifications.service';
+import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import {
-    Activity,
     Bell,
     ChevronLeft,
-    LayoutGrid,
-    MessageCircle,
     Settings,
     Shield,
     Siren,
     Star,
+    Trash2,
     Zap
 } from 'lucide-react-native';
-import React, { useState } from 'react';
-import { FlatList, ScrollView, StatusBar, StyleSheet, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { Alert, DeviceEventEmitter, FlatList, ScrollView, StatusBar, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Card, Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const NOTIFICATION_FILTERS = ['All', 'Priority', 'System', 'Activity'];
 
-const ROLE_NOTIFICATIONS = {
-    donor: [
-        {
-            id: 'd1',
-            type: 'emergency',
-            title: 'SO+ Emergency Request',
-            description: 'Critical need for O+ blood at Fortis Hospital. You are 4km away. Can you help?',
-            time: '2m ago',
-            category: 'Priority',
-            urgent: true,
-            bloodGroup: 'O+'
-        },
-        {
-            id: 'd2',
-            type: 'activity',
-            title: 'Points Earned!',
-            description: 'You earned 50 points for your last donation at the City Hub. Check your rewards.',
-            time: '3h ago',
-            category: 'Activity',
-            icon: Zap,
-            color: '#FF9500',
-            bg: '#FFF4E5'
-        },
-        {
-            id: 'd3',
-            type: 'system',
-            title: 'Health Tip',
-            description: 'Remember to stay hydrated! Drink at least 3 liters of water today.',
-            time: '1d ago',
-            category: 'System',
-            icon: Activity,
-            color: '#34C759',
-            bg: '#EAFCF0'
-        }
-    ],
-    volunteer: [
-        {
-            id: 'v1',
-            type: 'emergency',
-            title: 'New Rescue Mission',
-            description: 'Emergency transportation needed for units from Blood Bank A to Apollo Hospital.',
-            time: 'Just now',
-            category: 'Priority',
-            urgent: true,
-            missionType: 'Transport'
-        },
-        {
-            id: 'v2',
-            type: 'activity',
-            title: 'Mission Success',
-            description: 'Case #4092 has been successfully completed. 5 lives were saved. Great job!',
-            time: '4h ago',
-            category: 'Activity',
-            icon: Star,
-            color: '#007AFF',
-            bg: '#EAF6FF'
-        },
-        {
-            id: 'v3',
-            type: 'system',
-            title: 'Roster Update',
-            description: 'New duty shifts for the Indiranagar region have been released. Please review.',
-            time: '1d ago',
-            category: 'System',
-            icon: LayoutGrid,
-            color: '#5856D6',
-            bg: '#F0EFFF'
-        }
-    ],
-    admin: [
-        {
-            id: 'a1',
-            type: 'emergency',
-            title: 'System Alert: Low Stock',
-            description: 'Regional Hub East is below 20% capacity for B+ and O- groups.',
-            time: '1m ago',
-            category: 'Priority',
-            urgent: true,
-            alertLevel: 'Critical'
-        },
-        {
-            id: 'a2',
-            type: 'activity',
-            title: 'Broadcast Complete',
-            description: 'Emergency ping reached 452 donors in the 5km radius of Max Hospital.',
-            time: '1h ago',
-            category: 'Activity',
-            icon: MessageCircle,
-            color: '#32ADE6',
-            bg: '#EAFCF0'
-        },
-        {
-            id: 'a3',
-            type: 'system',
-            title: 'Server Maintenance',
-            description: 'Scheduled maintenance tonight at 02:00 AM. Systems may be offline for 30 mins.',
-            time: '6h ago',
-            category: 'System',
-            icon: Shield,
-            color: '#8E8E93',
-            bg: '#F2F2F7'
-        }
-    ]
-};
-
 export default function NotificationsScreen() {
-    const { role } = useAuth();
+    const { role, user } = useAuth();
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const [activeFilter, setActiveFilter] = useState('All');
+    const [notifications, setNotifications] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
 
-    const userRole = (role && ROLE_NOTIFICATIONS[role as keyof typeof ROLE_NOTIFICATIONS]) ? role : 'donor';
-    const notificationsRaw = ROLE_NOTIFICATIONS[userRole as keyof typeof ROLE_NOTIFICATIONS];
+    const loadNotifications = useCallback(async () => {
+        setLoading(true);
+        let data = await getInboxNotifications(user?.id);
 
-    const filteredNotifications = notificationsRaw.filter(n =>
-        activeFilter === 'All' || n.category === activeFilter
+        // If empty and we have a user, seed some initial ones
+        if (data.length === 0 && user?.id && role) {
+            await seedDummyNotifications(user.id, role);
+            data = await getInboxNotifications(user.id);
+        }
+
+        setNotifications(data);
+        setLoading(false);
+    }, [user?.id, role]);
+
+    useFocusEffect(
+        useCallback(() => {
+            loadNotifications();
+        }, [loadNotifications])
     );
 
+    // Listen for background syncs to auto-refresh the UI
+    React.useEffect(() => {
+        const sub = DeviceEventEmitter.addListener('db_synced', () => {
+            console.log('🔄 Sync complete, refreshing inbox...');
+            loadNotifications();
+        });
+        return () => sub.remove();
+    }, [loadNotifications]);
+
+    const handleRefresh = async () => {
+        setLoading(true);
+        try {
+            const db = await getDB();
+            await syncDatabase(db);
+        } catch (e) {
+            console.warn('Refresh sync failed:', e);
+        }
+        await loadNotifications();
+    };
+
+    const handleDelete = async (id: string) => {
+        const ok = await deleteNotificationFromInbox(id);
+        if (ok) {
+            setNotifications(prev => prev.filter(n => n.id !== id));
+        }
+    };
+
+    const confirmDelete = (id: string) => {
+        Alert.alert(
+            'Delete Notification',
+            'Are you sure you want to remove this notification?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Delete', style: 'destructive', onPress: () => handleDelete(id) }
+            ]
+        );
+    };
+
+    const getIconForType = (type: string) => {
+        switch (type) {
+            case 'emergency': return { icon: Siren, color: '#FF3B30', bg: '#FFEBEA' };
+            case 'activity': return { icon: Zap, color: '#FF9500', bg: '#FFF4E5' };
+            case 'event_created': return { icon: Star, color: '#007AFF', bg: '#EAF6FF' };
+            case 'system': return { icon: Shield, color: '#8E8E93', bg: '#F2F2F7' };
+            default: return { icon: Bell, color: '#5856D6', bg: '#F0EFFF' };
+        }
+    };
+
+    const filteredNotifications = notifications.filter(n => {
+        if (activeFilter === 'All') return true;
+        if (activeFilter === 'Priority') return n.type === 'emergency';
+        if (activeFilter === 'System') return n.type === 'system';
+        if (activeFilter === 'Activity') return n.type === 'activity' || n.type === 'event_created';
+        return true;
+    });
+
+    const formatTime = (ts: string) => {
+        if (!ts) return '';
+        const date = new Date(ts);
+        const now = new Date();
+        const diff = now.getTime() - date.getTime();
+        const mins = Math.floor(diff / 60000);
+        if (mins < 1) return 'Just now';
+        if (mins < 60) return `${mins}m ago`;
+        const hours = Math.floor(mins / 60);
+        if (hours < 24) return `${hours}h ago`;
+        return date.toLocaleDateString();
+    };
+
     const renderNotificationItem = ({ item }: { item: any }) => {
-        if (item.urgent) {
+        const { icon: Icon, color, bg } = getIconForType(item.type);
+        const isUrgent = item.type === 'emergency';
+
+        if (isUrgent) {
             return (
                 <View style={styles.urgentWrapper}>
                     <View style={styles.sectionHeader}>
                         <View style={styles.emergencyDot} />
                         <Text style={styles.sectionLabel}>URGENT ACTION REQUIRED</Text>
+                        <TouchableOpacity onPress={() => confirmDelete(item.id)} style={styles.deleteBtnSmall}>
+                            <Trash2 size={16} color="#FF3B30" />
+                        </TouchableOpacity>
                     </View>
                     <Card style={styles.urgentCard} mode="contained">
                         <View style={styles.urgentHeader}>
@@ -153,21 +143,19 @@ export default function NotificationsScreen() {
                             </View>
                             <View style={styles.urgentHeaderText}>
                                 <Text style={styles.urgentCategory}>{item.title}</Text>
-                                <Text style={styles.urgentTime}>{item.time}</Text>
+                                <Text style={styles.urgentTime}>{formatTime(item.created_at)}</Text>
                             </View>
                             <View style={styles.urgentTag}>
-                                <Text style={styles.urgentTagText}>{item.bloodGroup || item.alertLevel || 'SOS'}</Text>
+                                <Text style={styles.urgentTagText}>SOS</Text>
                             </View>
                         </View>
                         <View style={styles.urgentContent}>
-                            <Text style={styles.urgentDesc}>{item.description}</Text>
+                            <Text style={styles.urgentDesc}>{item.body}</Text>
                         </View>
                         <View style={styles.urgentActions}>
                             <TouchableOpacity style={styles.primaryAction} activeOpacity={0.8}>
                                 <LinearGradient colors={['#FF3B30', '#FF2D55']} style={styles.actionGradient}>
-                                    <Text style={styles.actionTextMain}>
-                                        {userRole === 'donor' ? 'Confirm Response' : 'Accept Mission'}
-                                    </Text>
+                                    <Text style={styles.actionTextMain}>Respond Now</Text>
                                 </LinearGradient>
                             </TouchableOpacity>
                             <TouchableOpacity style={styles.secondaryAction} activeOpacity={0.7}>
@@ -180,18 +168,21 @@ export default function NotificationsScreen() {
         }
 
         return (
-            <TouchableOpacity style={styles.notifItem} activeOpacity={0.7}>
-                <View style={[styles.iconBox, { backgroundColor: item.bg }]}>
-                    <item.icon size={22} color={item.color} />
+            <TouchableOpacity style={styles.notifItem} activeOpacity={0.7} onLongPress={() => confirmDelete(item.id)}>
+                <View style={[styles.iconBox, { backgroundColor: bg }]}>
+                    <Icon size={22} color={color} />
                 </View>
                 <View style={styles.notifContent}>
                     <View style={styles.notifTop}>
-                        <Text style={[styles.notifCategory, { color: item.color }]}>{item.category.toUpperCase()}</Text>
-                        <Text style={styles.notifTime}>{item.time}</Text>
+                        <Text style={[styles.notifCategory, { color }]}>{item.type?.toUpperCase() || 'INFO'}</Text>
+                        <Text style={styles.notifTime}>{formatTime(item.created_at)}</Text>
                     </View>
                     <Text style={styles.notifTitle}>{item.title}</Text>
-                    <Text style={styles.notifDesc}>{item.description}</Text>
+                    <Text style={styles.notifDesc}>{item.body}</Text>
                 </View>
+                <TouchableOpacity onPress={() => confirmDelete(item.id)} style={styles.deleteBtn}>
+                    <Trash2 size={18} color="#C7C7CC" />
+                </TouchableOpacity>
             </TouchableOpacity>
         );
     };
@@ -206,7 +197,10 @@ export default function NotificationsScreen() {
                         <ChevronLeft size={28} color="#1C1C1E" />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Inbox</Text>
-                    <TouchableOpacity style={styles.settingsBtn}>
+                    <TouchableOpacity
+                        style={styles.settingsBtn}
+                        onPress={() => router.push('/test-notifications')}
+                    >
                         <Settings size={22} color="#1C1C1E" />
                     </TouchableOpacity>
                 </View>
@@ -230,10 +224,12 @@ export default function NotificationsScreen() {
                 keyExtractor={item => item.id}
                 contentContainerStyle={styles.listContainer}
                 showsVerticalScrollIndicator={false}
+                refreshing={loading}
+                onRefresh={handleRefresh}
                 ListEmptyComponent={() => (
                     <View style={styles.emptyContainer}>
                         <Bell size={64} color="#E5E5EA" />
-                        <Text style={styles.emptyText}>All caught up!</Text>
+                        <Text style={styles.emptyText}>{loading ? 'Checking for updates...' : 'All caught up!'}</Text>
                     </View>
                 )}
             />
@@ -313,6 +309,7 @@ const styles = StyleSheet.create({
     },
     listContainer: {
         padding: 24,
+        paddingBottom: 100,
     },
     urgentWrapper: {
         marginBottom: 32,
@@ -334,6 +331,10 @@ const styles = StyleSheet.create({
         fontWeight: '900',
         color: '#FF3B30',
         letterSpacing: 1,
+        flex: 1,
+    },
+    deleteBtnSmall: {
+        padding: 4,
     },
     urgentCard: {
         backgroundColor: '#FFFFFF',
@@ -434,6 +435,7 @@ const styles = StyleSheet.create({
         padding: 20,
         marginBottom: 16,
         gap: 16,
+        alignItems: 'center',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 5 },
         shadowOpacity: 0.02,
@@ -476,6 +478,9 @@ const styles = StyleSheet.create({
         color: '#8E8E93',
         lineHeight: 20,
         fontWeight: '600',
+    },
+    deleteBtn: {
+        padding: 8,
     },
     emptyContainer: {
         alignItems: 'center',

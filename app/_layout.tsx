@@ -7,6 +7,7 @@ LogBox.ignoreLogs([
 
 import { AuthProvider } from '@/context/AuthContext';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import * as Notifications from 'expo-notifications';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -48,9 +49,22 @@ function AppInitializer({ children }: { children: React.ReactNode }) {
     }
     init();
 
+    // Set up notification listeners
+    const notificationListener = Notifications.addNotificationReceivedListener(notification => {
+      console.log('🔔 Notification Received:', notification);
+      console.warn('NOTIF RECEIVED:', notification.request.content.title);
+    });
+
+    const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
+      console.log('🔗 Notification Response Received:', response);
+      console.warn('NOTIF TAPPED:', response.notification.request.content.title);
+    });
+
     // Cleanup on unmount
     return () => {
       cleanupSyncManager();
+      notificationListener.remove();
+      responseListener.remove();
     };
   }, []);
   return <>{children}</>;
@@ -78,6 +92,7 @@ export default function RootLayout() {
                     <Stack.Screen name="event-details" />
                     <Stack.Screen name="camp-editor" />
                     <Stack.Screen name="notifications" options={{ presentation: 'modal' }} />
+                    <Stack.Screen name="test-notifications" />
                     <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                   </Stack>
                 </AppInitializer>
