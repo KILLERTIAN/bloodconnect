@@ -224,7 +224,10 @@ To enhance coordination, transparency, and operational efficiency within BloodCo
 ## 📊 **Database Design**
 
 ### **Schema Overview**
-
+<div align="center">
+  <img src="assets/images/database_scheme.jpeg" alt="database scheme" width="800"/>
+  <img src="assets/images/database_scheme1 .jpeg" alt="Role-Based Dashboards" width="800"/>
+</div
 
 
 ### **Core Tables**
